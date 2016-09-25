@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 #define SRV_PORT 5105
 #define MAX_RECV_BUF 256
@@ -13,17 +14,18 @@ int main(int argc, char** argv) {
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0) {
-        printf("There was an error creating the socket");
+        printf("There was an error creating the socket.\n");
         return 1;
     }
 
     struct sockaddr_in serveraddr;
     serveraddr.sin_family = AF_INET;
 
-    char port[10];
-    printf("Enter port number: ");
-    fgets(port, 10, stdin);
-    serveraddr.sin_port = htons((int)port);
+//    char port[10];
+//    printf("Enter port number: ");
+//    fgets(port, 10, stdin);
+//    serveraddr.sin_port = htons((int)port);
+    serveraddr.sin_port=htons(SRV_PORT);
 
     char ip[10];
     char *s = ip;
@@ -31,13 +33,13 @@ int main(int argc, char** argv) {
     fgets(ip, 10, stdin);
     int x = inet_pton(AF_INET, s, &(serveraddr.sin_addr.s_addr));
     if( x < 1){
-       printf("IP address error. Shutting down.");
+       printf("IP address error. Shutting down.\n");
        return 1;
     }
 
     int e = connect(sockfd, (struct sockaddr*) & serveraddr, sizeof(serveraddr));
     if(e < 0) {
-        printf("There was an error with connecting\n");
+        printf("There was an error with connecting.\n");
         return 1;
     }
 
@@ -45,13 +47,18 @@ int main(int argc, char** argv) {
     int sent_bytes;
     printf("Enter a file: ");
     char line[5000];
-    fgets(line, 5000, stdin);
-    send(sockfd, line, strlen(line), 0);
-    int send_strlen = strlen(line); /* length of message to be transmitted */
-    if( (sent_bytes = send(sockfd, line, send_strlen, 0)) < 0 ) {
+    memset(line,0, sizeof(line));
+    scanf("%s", line);
+    //  fgets(line,256,stdin);
+    
+    printf("File requested: %s\n",line);
+    int sf = send(sockfd, line, strlen(line), 0);
+    if(sf < 0) {
       perror("send error");
       return -1;
     }
+    
+   
     /* attempt to create file to save received data. 0644 = rw-r--r-- */
     if ( (f = open(line, O_WRONLY|O_CREAT, 0644)) < 0 ){
       perror("error creating file");
@@ -74,7 +81,7 @@ int main(int argc, char** argv) {
 
     int i =  shutdown(sockfd, SHUT_RD);
     if(i < 0) {
-        printf("There was an error disconnecting from the server");
+        printf("There was an error disconnecting from the server.\n");
         return 1;
     }
 

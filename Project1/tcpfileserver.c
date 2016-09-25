@@ -1,15 +1,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#define MAX_BUFF 256;
+#define MAX_BUFF 256
 
-void get_file_name(int, char*):
-int send_file(int, char*);
+void get_file_name( int, char* );
+int send_file( int, char* );
 
-int main(int argc, char* argv){
+int main(int argc, char** argv){
   int sockfd;
   int clientsocket;
   char file_name[MAX_BUFF];
@@ -20,10 +22,10 @@ int main(int argc, char* argv){
   memset(&clientaddr, 0, sizeof(clientaddr));
 
   serveraddr.sin_family=AF_INET;
-  serveraddr.sin_port=(argc > 1 ? htons(atoi(argv[1])) : htons(0));
+  serveraddr.sin_port=(argc > 1) ? htons(atoi(argv[1])) : htons(0);
   serveraddr.sin_addr.s_addr=INADDR_ANY;
 
-  if((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) < 0) {
+  if((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     perror("socket error");
     exit(1);
   }
@@ -44,18 +46,24 @@ int main(int argc, char* argv){
 
     int len = sizeof(clientaddr);
 
-    printf("Waiting for client to connect...\n\n", );
+    printf("Waiting for client to connect...\n\n");
 
-    if((clientsocket = accept(sockfd,
-          (struct sockaddr*) &clientaddr,&len)) < 0) {
+    if((clientsocket = accept(sockfd, (struct sockaddr*) &clientaddr, &len)) < 0) {
       perror("accept error");
       break;
-    } else {
+    }
+    else {
       printf("Client is connected.\n");
     }
 
-    get_file_name(,file_name);
-    send_file(,file_name);
+    char rec_str[MAX_BUFF];
+    ssize_t rec_bytes;
+
+    if((rec_bytes = recv(socket, rec_str, MAX_BUFF, 0)) < 0) {
+      perror("Receiving file name error.\n");
+      return;
+    }
+    send_file(clientsocket, file_name);
 
     printf("Closing connection.\n");
     close(clientsocket);
@@ -65,15 +73,16 @@ int main(int argc, char* argv){
 }
 
 void get_file_name(int socket, char* file_name) {
-  char rec_str[MAX_BUFF];
-  ssize_t rec_bytes;
+   char rec_str[MAX_BUFF];
+   ssize_t rec_bytes;
 
-  if((rec_bytes = recv(socket, rec_str, MAX_BUFF, 0)) < 0) {
-    perror("Receiving file name error.\n");
-    return;
-  }
+   if((rec_bytes = recv(socket, rec_str, MAX_BUFF, 0)) < 0) {
+     perror("Receiving file name error.\n");
+     return;
+   }
 
-  sscanf(rec_str, "%s\n", *file_name);
+  sscanf(rec_str, "%s\n", file_name);
+  return;
 }
 
 int send_file(int socket, char *file_name){
@@ -83,19 +92,19 @@ int send_file(int socket, char *file_name){
   char * error_message = "File not found.\n";
   int f;
 
-  sent_count = 0;
+  send_count = 0;
   sent_file_size = 0;
 
-  if((f=open(file_name,O_RDONLY)) < 0) {
+  if(open(file_name,O_RDONLY) < 0) {
     perror(file_name);
-    if((s_bytes=send(clientsocket,error_message,strlen(error_message),0)) < 0) {
+    if((s_bytes=send(socket,error_message,strlen(error_message),0)) < 0) {
       perror("Sending error.\n");
       return -1;
     }
   } else {
-    printf("Received request for file...\nSending file: %d\n", file_name);
-    while((r_bytes = read(f, send_buff, MAX_BUFF)) > 0) {
-      if((s_bytes = send(clientsocket, send_buff, MAX_BUFF, 0)) < r_bytes) {
+    printf("Received request for file...\nSending file: %s\n", file_name);
+    while( (r_bytes = read(f, send_buff, MAX_BUFF)) > 0) {
+      if((s_bytes = send(socket, send_buff, MAX_BUFF, 0)) < r_bytes) {
         perror("Sending error.\n");
         return -1;
       }

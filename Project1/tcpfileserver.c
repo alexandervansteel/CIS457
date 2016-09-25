@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#define SRV_PORT 5105
 #define MAX_BUFF 256
 
 void get_file_name( int, char* );
@@ -14,7 +15,7 @@ int send_file( int, char* );
 int main(int argc, char** argv){
   int sockfd;
   int clientsocket;
-  char file_name[MAX_BUFF];
+  char file_name[5000];
 
 
   struct sockaddr_in serveraddr, clientaddr;
@@ -22,7 +23,8 @@ int main(int argc, char** argv){
   memset(&clientaddr, 0, sizeof(clientaddr));
 
   serveraddr.sin_family=AF_INET;
-  serveraddr.sin_port=(argc > 1) ? htons(atoi(argv[1])) : htons(0);
+  //serveraddr.sin_port=(argc > 1) ? htons(atoi(argv[1])) : htons(0);
+  serveraddr.sin_port=htons(SRV_PORT);
   serveraddr.sin_addr.s_addr=INADDR_ANY;
 
   if((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
@@ -56,13 +58,13 @@ int main(int argc, char** argv){
       printf("Client is connected.\n");
     }
 
-    char rec_str[MAX_BUFF];
-    ssize_t rec_bytes;
+    int rec_bytes;
 
-    if((rec_bytes = recv(socket, rec_str, MAX_BUFF, 0)) < 0) {
-      perror("Receiving file name error.\n");
+    if((rec_bytes = recv(clientsocket, file_name, 5000, 0)) < 0){
+      perror("Receiving file name error,\n");
       return;
     }
+    
     send_file(clientsocket, file_name);
 
     printf("Closing connection.\n");
@@ -94,6 +96,7 @@ int send_file(int socket, char *file_name){
 
   send_count = 0;
   sent_file_size = 0;
+
 
   if(open(file_name,O_RDONLY) < 0) {
     perror(file_name);

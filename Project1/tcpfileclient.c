@@ -11,7 +11,7 @@
 #define MAX_SEND_BUF 256
 
 int main(int argc, char** argv) {
-
+    /* Initializes the socket. */
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0) {
         printf("There was an error creating the socket.\n");
@@ -20,13 +20,14 @@ int main(int argc, char** argv) {
 
     struct sockaddr_in serveraddr;
     serveraddr.sin_family = AF_INET;
-
+    /* Prompts user for port and sets port for client and server. */
 //    char port[10];
 //    printf("Enter port number: ");
 //    fgets(port, 10, stdin);
 //    serveraddr.sin_port = htons((int)port);
     serveraddr.sin_port=htons(SRV_PORT);
 
+    /* Prompts user for IP address to connect to. */
     char ip[10];
     char *s = ip;
     printf("Enter IP address: ");
@@ -43,6 +44,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    /* Requests file from server by sending file name. */
     int f;
     int sent_bytes;
     printf("Enter a file: ");
@@ -50,16 +52,16 @@ int main(int argc, char** argv) {
     memset(line,0, sizeof(line));
     scanf("%s", line);
     //  fgets(line,256,stdin);
-    
+
     printf("File requested: %s\n",line);
     int sf = send(sockfd, line, strlen(line), 0);
     if(sf < 0) {
       perror("send error");
       return -1;
     }
-    
-   
-    /* attempt to create file to save received data. 0644 = rw-r--r-- */
+
+
+    /* Attempt to create file to save received data. 0644 = rw-r--r-- */
     if ( (f = open(line, O_WRONLY|O_CREAT, 0644)) < 0 ){
       perror("error creating file");
       return -1;
@@ -67,7 +69,7 @@ int main(int argc, char** argv) {
 
     int rcvd_bytes = 0;
 
-    /* continue receiving until ? (data or close) */
+    /* Continue receiving until ? (data or close) */
     while ( (rcvd_bytes = recv(sockfd, line, MAX_RECV_BUF, 0)) > 0 ){
 
       if (write(f, line, rcvd_bytes) < 0 ) {

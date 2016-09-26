@@ -23,12 +23,12 @@ int main(int argc, char** argv){
   memset(&clientaddr, 0, sizeof(clientaddr));
 
   serveraddr.sin_family=AF_INET;
-  /*
-   * Accepts a specific port from client. If no port is specified, uses
-   * random port.
-   */
-  //serveraddr.sin_port=(argc > 1) ? htons(atoi(argv[1])) : htons(0);
-  serveraddr.sin_port=htons(SRV_PORT);
+  /* Prompts user to enter port number.  */
+  char port[10];
+  printf("Enter port number: ");
+  fgets(port, 10, stdin);
+  serveraddr.sin_port = htons((int) port);
+//  serveraddr.sin_port=htons(0);
   serveraddr.sin_addr.s_addr=INADDR_ANY;
 
   /* Checks creation of socket. */

@@ -90,19 +90,14 @@ int send_file(int socket, char *file_name){
   int send_count;
   ssize_t r_bytes, s_bytes, sent_file_size;
   char send_buff[MAX_BUFF];
-  char * error_message = "File not found.\n";
   int f;
 
   send_count = 0;
   sent_file_size = 0;
 
   /* Attempts to open requested file. */
-  if(open(file_name,O_RDONLY) < 0) {
+  if((f=open(file_name,O_RDONLY)) < 0) {
     perror(file_name);
-    if((s_bytes=send(socket,error_message,strlen(error_message),0)) < 0) {
-      perror("Error opening file.\n");
-      return -1;
-    }
   } else {
     printf("Received request for file...\nSending file: %s\n", file_name);
     /* Sends file in increments of MAX_BUFF = 256 bits. */

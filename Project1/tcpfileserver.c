@@ -26,9 +26,11 @@ int main(int argc, char** argv){
   /* Prompts user to enter port number.  */
   char port[10];
   printf("Enter port number: ");
-  fgets(port, 10, stdin);
-  serveraddr.sin_port = htons((int) port);
-//  serveraddr.sin_port=htons(0);
+  if(fgets(port, 10, stdin) == NULL){
+    perror("invalid input");
+  }
+  serveraddr.sin_port = htons((int) strtol(port,(char **)NULL,10));
+//  serveraddr.sin_port=htons(SRV_PORT);
   serveraddr.sin_addr.s_addr=INADDR_ANY;
 
   /* Checks creation of socket. */

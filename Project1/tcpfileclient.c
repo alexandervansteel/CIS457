@@ -21,11 +21,13 @@ int main(int argc, char** argv) {
     struct sockaddr_in serveraddr;
     serveraddr.sin_family = AF_INET;
     /* Prompts user for port and sets port for client and server. */
-//    char port[10];
-//    printf("Enter port number: ");
-//    fgets(port, 10, stdin);
-//    serveraddr.sin_port = htons((int)port);
-    serveraddr.sin_port=htons(SRV_PORT);
+    char port[10];
+    printf("Enter port number: ");
+    if(fgets(port, 10, stdin) == NULL){
+      perror("invalid input");
+    }
+    serveraddr.sin_port = htons((int) strtol(port,(char **)NULL,10));
+//    serveraddr.sin_port=htons(SRV_PORT);
 
     /* Prompts user for IP address to connect to. */
     char ip[10];

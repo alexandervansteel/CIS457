@@ -10,8 +10,8 @@ int main(int argc, char **argv){
   if(sockfd<0){
     printf("Error making socket.\n");
   }
+  
   struct sockaddr_in serveraddr;
-
   serveraddr.sin_family = AF_INET;
 
   char port[10];
@@ -26,24 +26,38 @@ int main(int argc, char **argv){
 
   if((sockfd = socket(AF_INET,SOCK_DGRAM,0)) < 0){
     perror("socket error");
-    exit(1);
+    return -1;
   }
 
   if(bind(sockfd,(struct sockaddr*)&serveraddr,sizeof(serveraddr)) < 0){
     perror("bind error");
-    exit(1);
-  } else {
-    printf("Waiting to hear from client...\n");
+    return -1;
   }
+
+  char line[1000];
 
   while(1){
-    int len = sizeof(struct sockaddr_in);
-    char line[1000];
-    int n = recvfrom(sockfd,line,1000,0,
-      (struct sockaddr*)&serveraddr,&len);
-    printf("Received from client: %s\n", line);
-  }
+    memset(line, 0, sizeof(line));    
 
+    int len = sizeof(struct sockaddr_in);
+    int n = recvfrom(sockfd,line,1000,0,
+                      (struct sockaddr*)&serveraddr,&len);
+    if(n<0){
+      perror("receiving error");
+      break;
+    } else {
+      printf("Received from client: %s\n", line);
+    }
+    
+    int send = sendto(sockfd,line,strlen(line),0,
+                       (struct sockaddr*)&serveraddr,sizeof(serveraddr));
+    if(send<0){
+      perror("sending error");
+      break;
+    } else {
+      printf("Sent to client: %s\n", line);
+    } 
+  }
   close(sockfd);
 
   return 0;

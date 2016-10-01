@@ -9,8 +9,8 @@
 #define SRV_PORT 6120
 #define MAX_BUFF 256
 
-void* handleclient(void* arg){
-  int clientsocket = (int)arg;
+void* handleclient(void** arg){
+  int clientsocket = *(int)arg;
   while(1){
     char line[5000];
     /* Checks to make sure file name is received. */
@@ -91,15 +91,30 @@ int main(int argc, char** argv){
         if(i==sockfd){
           int len = sizeof(clientaddr);
           int clientsocket = accept(sockfd,(struct sockaddr*)&clientaddr,&len);
+          if(clientsocket < 0){
+            perror("accept error");
+            break;
+          } else {
+            printf("Client %d has connected.\n",i);
+          }
           FD_SET(clientsocket,&sockets);
         } else {
           while(1){
+            int len = sizeof(clientaddr);
+            int clientsocket = accept(sockfd,(struct sockaddr*)&clientaddr,&len);
+            if(clientsocket < 0){
+              perror("accept error");
+              break;
+            } else {
+              printf("Client %d has connected.\n",i);
+            }
+            //FD_SET(clientsocket,&sockets);
             char line[5000];
             /* Checks to make sure file name is received. */
             int rec_bytes;
             if((rec_bytes = recv(sockfd, line, 5000, 0)) < 0){
               perror("Receiving file name error.\n");
-              return;
+              break;
             }
             if(strcmp(line,"/exit\n")){
               printf("Client has chosen to close connection.\n");

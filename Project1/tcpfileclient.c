@@ -62,8 +62,8 @@ int main(int argc, char** argv) {
       printf("Enter a file or type /exit to close the connection: ");
       char line[5000];
       memset(line,0, sizeof(line));
-      scanf("%s", line);
-      //  fgets(line,256,stdin);
+//      scanf("%s", line);
+      fgets(line,256,stdin);
       if(strcmp(line,"/exit\n") == 0){
         printf("Client has chosen to close connection.\n");
         break;

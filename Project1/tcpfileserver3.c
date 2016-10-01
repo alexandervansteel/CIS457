@@ -25,7 +25,7 @@ int main (int argc, char* argv[]){
   memset(&clientaddr,0,sizeof(clientaddr));
 
   serveraddr.sin_family = AF_INET;
-  serveraddr.sin_addr.sin_port = INADDR_ANY;
+  serveraddr.sin_addr.s_addr = INADDR_ANY;
   /* Prompts the user to enter the port number. */
   char port[10];
   int p_num;
@@ -68,16 +68,15 @@ int main (int argc, char* argv[]){
   while(1){
     cli_len = sizeof(clientaddr);
 
-    printf("Witing for client to connect...\n");
+    printf("Waiting for client to connect...\n");
     if((clientsocket = accept(sockfd,(struct sockaddr*)&clientaddr,&cli_len)) < 0){
       perror("accept error");
       break;
     }
 
-    if((child_pid = for()) == 0){
+    if((child_pid = fork()) == 0){
       close(sockfd);
 
-      /* do the file work */
       char line[5000];
       /* Checks to make sure file name is received. */
       int rec_bytes;
@@ -87,14 +86,11 @@ int main (int argc, char* argv[]){
       }
       if(strcmp(line,"/exit\n")){
         printf("Client has chosen to close connection.\n");
+        close(clientsocket);
         break;
       }
       /* Sends socket and file name to method to verify name and send file. */
       send_file(sockfd, line);
-      /* do the file work */
-
-      close(clientsocket);
-      exit(0);
     }
     close(clientsocket);
   }

@@ -85,6 +85,10 @@ int main(int argc, char** argv){
       perror("Receiving file name error.\n");
       return;
     }
+    if(strcmp(file_name,"/exit\n")){
+      printf("Client has chosen to close connection.\n");
+      break;
+    }
     /* Sends socket and file name to method to verify name and send file. */
     send_file(clientsocket, file_name);
 

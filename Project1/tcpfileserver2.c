@@ -1,5 +1,5 @@
 #include <sys/socket.h>
-#include <netinet.in/h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
@@ -10,26 +10,28 @@
 #define MAX_BUFF 256
 
 void* handleclient(void* arg){
-  int clientsocket = *(int)arg;
+  int clientsocket = (int)arg;
   while(1){
     char line[5000];
     /* Checks to make sure file name is received. */
     int rec_bytes;
-    if((rec_bytes = recv(clientsocket, file_name, 5000, 0)) < 0){
+    if((rec_bytes = recv(clientsocket, line, 5000, 0)) < 0){
       perror("Receiving file name error.\n");
       return;
     }
-    if(strcmp(file_name,"/exit\n")){
+    if(strcmp(line,"/exit\n")){
       printf("Client has chosen to close connection.\n");
       break;
     }
     /* Sends socket and file name to method to verify name and send file. */
-    send_file(clientsocket, file_name);
+    send_file(clientsocket, line);
   }
   close(clientsocket);
 }
 
 int main(int argc, char** argv){
+
+  int sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
   fd_set sockets;
   FD_ZERO(&sockets);
   FD_SET(sockfd,&sockets);
@@ -52,7 +54,7 @@ int main(int argc, char** argv){
   /* Converts port string to int and checks range for validity. */
   sscanf(port,"%d",&p_num);
   if(p_num<1025 | p_num>65536){
-    perror("Invalid port number. Shutting down.\n")
+    perror("Invalid port number. Shutting down.\n");
     return 1;
   }
 
@@ -61,21 +63,21 @@ int main(int argc, char** argv){
   serveraddr.sin_addr.s_addr = INADDR_ANY;
 
   /* Checks creation of socket. */
-  if((sockfd = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP)) < 0){
+  if(sockfd < 0){
     perror("socket error");
-    exit(1);
+    return -1;
   }
 
   /* Checks binding of socket. */
   if(bind(sockfd, (struct sockaddr*) &serveraddr, sizeof(serveraddr)) < 0) {
     perror("bind error");
-    exit(1);
+    return -1;
   }
 
   /* Checks to make sure the server is listening and displays the port. */
   if(listen(sockfd,10) < 0) {
     printf("Failed to listen.\n");
-    exit(1);
+    return -1;
   } else {
     printf("Listening on port number %d ...\n", ntohs(serveraddr.sin_port));
   }
@@ -95,16 +97,16 @@ int main(int argc, char** argv){
             char line[5000];
             /* Checks to make sure file name is received. */
             int rec_bytes;
-            if((rec_bytes = recv(sockfd, file_name, 5000, 0)) < 0){
+            if((rec_bytes = recv(sockfd, line, 5000, 0)) < 0){
               perror("Receiving file name error.\n");
               return;
             }
-            if(strcmp(file_name,"/exit\n")){
+            if(strcmp(line,"/exit\n")){
               printf("Client has chosen to close connection.\n");
               break;
             }
             /* Sends socket and file name to method to verify name and send file. */
-            send_file(sockfd, file_name);
+            send_file(sockfd, line);
           }
           close(sockfd);
         }

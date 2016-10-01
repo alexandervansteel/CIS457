@@ -36,7 +36,7 @@ int main(int argc, char** argv){
   FD_ZERO(&sockets);
   FD_SET(sockfd,&sockets);
 
-  /* Creates the socket structuresand 0s the memory. */
+  /* Creates the socket structures and 0s the memory. */
   struct sockaddr_in serveraddr, clientaddr;
   memset(&serveraddr,0,sizeof(serveraddr));
   memset(&clientaddr,0,sizeof(clientaddr));

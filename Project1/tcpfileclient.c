@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 
-#define SRV_PORT 5105
+#define SRV_PORT 6120
 #define MAX_RECV_BUF 256
 #define MAX_SEND_BUF 256
 
@@ -22,12 +22,21 @@ int main(int argc, char** argv) {
     serveraddr.sin_family = AF_INET;
     /* Prompts user for port and sets port for client and server. */
     char port[10];
+    int p_num;
     printf("Enter port number: ");
     if(fgets(port, 10, stdin) == NULL){
-      perror("invalid input");
+      perror("Invalid port. Shutting down. \n");
+      return 1;
+    }
+
+    /*Convert port to int and check range validity */
+    sscanf(port, "%d", &p_num);
+    if(p_num < 1025 | p_num > 65536){
+      perror("Invalid port. Shutting down. \n");
+      return 1;
     }
     serveraddr.sin_port = htons((int) strtol(port,(char **)NULL,10));
-//    serveraddr.sin_port=htons(SRV_PORT);
+    // serveraddr.sin_port=htons(SRV_PORT);
 
     /* Prompts user for IP address to connect to. */
     char ip[10];
@@ -36,7 +45,7 @@ int main(int argc, char** argv) {
     fgets(ip, 10, stdin);
     int x = inet_pton(AF_INET, s, &(serveraddr.sin_addr.s_addr));
     if( x < 1){
-       printf("IP address error. Shutting down.\n");
+       perror("IP address error. Shutting down.\n");
        return 1;
     }
 
@@ -47,7 +56,7 @@ int main(int argc, char** argv) {
     }
 
     /* Requests file from server by sending file name. */
-    int f;
+    int file;
     int sent_bytes;
     printf("Enter a file: ");
     char line[5000];
@@ -56,15 +65,18 @@ int main(int argc, char** argv) {
     //  fgets(line,256,stdin);
 
     printf("File requested: %s\n",line);
-    int sf = send(sockfd, line, strlen(line), 0);
-    if(sf < 0) {
+    int send_file = send(sockfd, line, strlen(line), 0);
+    if(send_file < 0) {
       perror("send error");
       return -1;
     }
 
 
     /* Attempt to create file to save received data. 0644 = rw-r--r-- */
-    if ( (f = open(line, O_WRONLY|O_CREAT, 0644)) < 0 ){
+    char new_file [5000] = "copy";
+    strcat(new_file, line);
+    printf("%s\n", new_file);
+    if ( (file = open(new_file, O_WRONLY|O_CREAT, 0644)) < 0 ){
       perror("error creating file");
       return -1;
     }
@@ -74,20 +86,22 @@ int main(int argc, char** argv) {
     /* Continue receiving until ? (data or close) */
     while ( (rcvd_bytes = recv(sockfd, line, MAX_RECV_BUF, 0)) > 0 ){
 
-      if (write(f, line, rcvd_bytes) < 0 ) {
+      if (write(file, line, rcvd_bytes) < 0 ) {
          perror("error writing to file");
          return -1;
       }
 
     }
 
-    close(f); /* close file*/
+    close(file); /* close file*/
 
     int i =  shutdown(sockfd, SHUT_RD);
     if(i < 0) {
         printf("There was an error disconnecting from the server.\n");
         return 1;
     }
+
+    printf("Transfer successful. Shutting down.\n");
 
     return 0;
 }

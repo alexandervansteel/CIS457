@@ -6,7 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define SRV_PORT 5105
+#define SRV_PORT 6120
 #define MAX_BUFF 256
 
 void get_file_name( int, char* );
@@ -25,10 +25,20 @@ int main(int argc, char** argv){
   serveraddr.sin_family=AF_INET;
   /* Prompts user to enter port number.  */
   char port[10];
+  int p_num;
   printf("Enter port number: ");
   if(fgets(port, 10, stdin) == NULL){
-    perror("invalid input");
+    perror("Invalid port. Shutting down. \n");
+    return 1;
   }
+
+  /*Convert port to int and check range validity */
+  sscanf(port, "%d", &p_num);
+  if(p_num < 1025 | p_num > 65536){
+    perror("Invalid port. Shutting down. \n");
+    return 1;
+  }
+
   serveraddr.sin_port = htons((int) strtol(port,(char **)NULL,10));
 //  serveraddr.sin_port=htons(SRV_PORT);
   serveraddr.sin_addr.s_addr=INADDR_ANY;

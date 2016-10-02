@@ -64,12 +64,13 @@ int main(int argc, char** argv) {
       memset(line,0, sizeof(line));
 //      scanf("%s", line);
       fgets(line,256,stdin);
+        
       if(strcmp(line,"/exit\n") == 0){
         printf("Client has chosen to close connection.\n");
         break;
+      } else {
+        printf("File requested: %s\n",line);
       }
-
-      printf("File requested: %s\n",line);
       int send_file = send(sockfd, line, strlen(line), 0);
       if(send_file < 0) {
         perror("send error");

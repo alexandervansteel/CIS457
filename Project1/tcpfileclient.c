@@ -62,18 +62,25 @@ int main(int argc, char** argv) {
       printf("Enter a file or type /exit to close the connection: ");
       char line[5000];
       memset(line,0, sizeof(line));
-//      scanf("%s", line);
-      fgets(line,256,stdin);
+      scanf("%s", line);
+//      fgets(line,256,stdin);
       if(strcmp(line,"/exit\n") == 0){
         printf("Client has chosen to close connection.\n");
-        break;
+        int i =  shutdown(sockfd, SHUT_RD);
+        if(i < 0) {
+            printf("There was an error disconnecting from the server.\n");
+            return 1;
+        }
+        return 0;
       }
 
       printf("File requested: %s\n",line);
-      int send_file = send(sockfd, line, strlen(line), 0);
-      if(send_file < 0) {
-        perror("send error");
-        return -1;
+      if(line != NULL){
+        int send_file = send(sockfd, line, strlen(line), 0);
+        if(send_file < 0) {
+          perror("send error");
+          return -1;
+        }
       }
 
       /* Attempt to create file to save received data. 0644 = rw-r--r-- */
@@ -85,27 +92,21 @@ int main(int argc, char** argv) {
         return -1;
       }
 
-      int rcvd_bytes = 0;
+      ssize_t rcvd_bytes = 0;
 
       /* Continue receiving until ? (data or close) */
       while ( (rcvd_bytes = recv(sockfd, line, MAX_RECV_BUF, 0)) > 0 ){
 
         if (write(file, line, rcvd_bytes) < 0 ) {
-           perror("error writing to file");
-           return -1;
-        }
+          perror("Error writing to file. Closing program...\n");
+          close(file);
+          return -1;
+        }           
 
       }
-
+      printf("file close");
       close(file); /* close file*/
-
-      int i =  shutdown(sockfd, SHUT_RD);
-      if(i < 0) {
-          printf("There was an error disconnecting from the server.\n");
-          return 1;
-      }
-
-      printf("Transfer successful. Shutting down.\n");
+      printf("Transfer successful.\n");
     }
     return 0;
 }

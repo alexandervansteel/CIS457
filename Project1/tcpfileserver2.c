@@ -6,9 +6,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
-#define SRV_PORT 6120
-#define MAX_BUFF 256
+#define MAX_BUFF 1024
 
 void* handleclient(void* arg){
   int clientsocket = *(int*)arg;
@@ -22,12 +22,11 @@ void* handleclient(void* arg){
     }
     if(strcmp(line,"/exit\n") == 0){
       printf("Client has chosen to close connection.\n");
-      break;
+      return;
     }
     /* Sends socket and file name to method to verify name and send file. */
     send_file(clientsocket, line);
-    memset(line, 0, sizeof(line));
-    send(clientsocket, line, strlen(line), 0);
+    memset(line,0, sizeof(line));
   }
   close(clientsocket);
 }
@@ -117,7 +116,11 @@ int send_file(int socket, char *file_name){
     perror(file_name);
   } else {
     printf("Received request for file...\nSending file: %s\n", file_name);
-    /* Sends file in increments of MAX_BUFF = 256 bits. */
+    /* Sends file in increments of MAX_BUFF = 1024 bits. */
+
+	/*get file size and send it */
+	// sent_file_size = get_file_size(&file_name);
+	// send(socket, sent_file_size, sizeof(sent_file_size), 0);
 
     while( (r_bytes = read(f, send_buff, MAX_BUFF)) > 0) {
       if((s_bytes = send(socket, send_buff, MAX_BUFF, 0)) < r_bytes) {
@@ -127,11 +130,21 @@ int send_file(int socket, char *file_name){
       send_count++;
       sent_file_size += s_bytes;
     }
-    //send(socket, r_bytes, sizeof(r_bytes), 0);
     close(f);
+	 close(socket);
   }
+
   /* Displays sending information server side to verify. */
   printf("Sending complete.\n");
   printf("Sent file in %d packets.\n", send_count);
   printf("Sent file size of %d bits.\n", sent_file_size);
+  return 0;
+}
+
+size_t get_file_size(char * file_name) {
+	struct stat st;
+    if(stat(file_name, &st) != 0) {
+        return 0;
+    }
+    return st.st_size;
 }

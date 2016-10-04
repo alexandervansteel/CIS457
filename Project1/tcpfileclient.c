@@ -6,9 +6,8 @@
 #include <fcntl.h>
 #include <stdbool.h>
 
-#define SRV_PORT 6120
-#define MAX_RECV_BUF 256
-#define MAX_SEND_BUF 256
+#define MAX_RECV_BUF 1024
+#define MAX_SEND_BUF 1024
 
 int main(int argc, char** argv) {
     /* Initializes the socket. */
@@ -57,14 +56,13 @@ int main(int argc, char** argv) {
 
     while(1){
       /* Requests file from server by sending file name. */
-      int file;
       int sent_bytes;
       printf("Enter a file or type /exit to close the connection: ");
       char line[5000];
       memset(line,0, sizeof(line));
       scanf("%s", line);
 //      fgets(line,256,stdin);
-      if(strcmp(line,"/exit\n") == 0){
+      if(strcmp(line,"/exit") == 0){
         printf("Client has chosen to close connection.\n");
         int i =  shutdown(sockfd, SHUT_RD);
         if(i < 0) {
@@ -82,31 +80,36 @@ int main(int argc, char** argv) {
           return -1;
         }
       }
-
-      /* Attempt to create file to save received data. 0644 = rw-r--r-- */
-      char new_file [5000] = "copy";
-      strcat(new_file, line);
-      printf("%s\n", new_file);
-      if ( (file = open(new_file, O_WRONLY|O_CREAT, 0644)) < 0 ){
-        perror("error creating file");
-        return -1;
-      }
-
-      ssize_t rcvd_bytes = 0;
-
-      /* Continue receiving until ? (data or close) */
-      while ( (rcvd_bytes = recv(sockfd, line, MAX_RECV_BUF, 0)) > 0 ){
-
-        if (write(file, line, rcvd_bytes) < 0 ) {
-          perror("Error writing to file. Closing program...\n");
-          close(file);
-          return -1;
-        }           
-
-      }
-      printf("file close");
-      close(file); /* close file*/
-      printf("Transfer successful.\n");
+      write_file(sockfd, line);
     }
     return 0;
+}
+
+int write_file(int socket, char * file_name) {
+	/* Attempt to create file to save received data. 0644 = rw-r--r-- */
+   char new_file [5000] = "copy";
+	int file;
+	ssize_t rcvd_bytes, wrt_bytes, prev_wrt;
+   strcat(new_file, file_name);
+   printf("%s\n", new_file);
+   if ( (file = open(new_file, O_WRONLY|O_CREAT, 0644)) < 0 ){
+       perror("error creating file");
+       return -1;
+   }
+
+	char line[MAX_RECV_BUF];
+   while ((rcvd_bytes = recv(socket, line, MAX_RECV_BUF, 0)) > 0){
+
+      if (write(file, line, rcvd_bytes) < 0 ) {
+        perror("Error writing to file. Closing program...\n");
+        close(file);
+        return -1;
+      }
+		wrt_bytes += rcvd_bytes;
+		if(wrt_bytes == prev_wrt){
+		  close(file);
+		  return 0;
+		}
+      prev_wrt = wrt_bytes;
+   }
 }

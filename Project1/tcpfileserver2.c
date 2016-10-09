@@ -6,13 +6,13 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <sys/stat.h>
 
-#define MAX_BUFF 1024
+#define SRV_PORT 6120
+#define MAX_BUFF 256
 
 void* handleclient(void* arg){
   int clientsocket = *(int*)arg;
-  while(1){
+  //while(1){
     char line[5000];
     /* Checks to make sure file name is received. */
     int rec_bytes;
@@ -20,14 +20,17 @@ void* handleclient(void* arg){
       perror("Receiving file name error.\n");
       return;
     }
-    if(strcmp(line,"/exit\n") == 0){
+    if(strcmp(line,"/exit") == 0){
       printf("Client has chosen to close connection.\n");
-      return;
-    }
+      close(clientsocket);
+//      break;
+    } else {
     /* Sends socket and file name to method to verify name and send file. */
     send_file(clientsocket, line);
-    memset(line,0, sizeof(line));
-  }
+    memset(line, 0, sizeof(line));
+    send(clientsocket, line, strlen(line), 0);
+    }
+  //}
   close(clientsocket);
 }
 
@@ -116,11 +119,7 @@ int send_file(int socket, char *file_name){
     perror(file_name);
   } else {
     printf("Received request for file...\nSending file: %s\n", file_name);
-    /* Sends file in increments of MAX_BUFF = 1024 bits. */
-
-	/*get file size and send it */
-	// sent_file_size = get_file_size(&file_name);
-	// send(socket, sent_file_size, sizeof(sent_file_size), 0);
+    /* Sends file in increments of MAX_BUFF = 256 bits. */
 
     while( (r_bytes = read(f, send_buff, MAX_BUFF)) > 0) {
       if((s_bytes = send(socket, send_buff, MAX_BUFF, 0)) < r_bytes) {
@@ -130,21 +129,11 @@ int send_file(int socket, char *file_name){
       send_count++;
       sent_file_size += s_bytes;
     }
+    //send(socket, r_bytes, sizeof(r_bytes), 0);
     close(f);
-	 close(socket);
   }
-
   /* Displays sending information server side to verify. */
   printf("Sending complete.\n");
   printf("Sent file in %d packets.\n", send_count);
   printf("Sent file size of %d bits.\n", sent_file_size);
-  return 0;
-}
-
-size_t get_file_size(char * file_name) {
-	struct stat st;
-    if(stat(file_name, &st) != 0) {
-        return 0;
-    }
-    return st.st_size;
 }

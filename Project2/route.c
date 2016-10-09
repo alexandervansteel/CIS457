@@ -1,10 +1,11 @@
-#include <sys/socket.h> 
-#include <netpacket/packet.h> 
+#include <sys/socket.h>
+#include <netpacket/packet.h>
 #include <net/ethernet.h>
 #include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <ifaddrs.h>
+#include <ip.h>
 
 int main(){
   int packet_socket;
@@ -67,19 +68,53 @@ int main(){
     //see packets in both directions. Only outgoing can be seen when
     //using a packet socket with some specific protocol)
     int n = recvfrom(packet_socket, buf, 1500,0,(struct sockaddr*)&recvaddr, &recvaddrlen);
+
+    //Check for timeout
+    if(n == -1){
+      continue;
+    }
     //ignore outgoing packets (we can't disable some from being sent
     //by the OS automatically, for example ICMP port unreachable
     //messages, so we will just ignore them here)
     if(recvaddr.sll_pkttype==PACKET_OUTGOING)
       continue;
+
     //start processing all others
     printf("Got a %d byte packet\n", n);
-    
+
     //what else to do is up to you, you can send packets with send,
     //just like we used for TCP sockets (or you can use sendto, but it
     //is not necessary, since the headers, including all addresses,
     //need to be in the buffer you are sending)
-    
+    if(ntohs(recvaddr.sll_protocol) == ETH_P_ARP) {
+      printf("Received ARP\n");
+      //processArpRequest(tmpIface, buf, n);
+    } else if(ntohs(recvaddr.sll_protocol) == ETH_P_IP) {
+      printf("Received IP\n");
+
+      struct iphdr ipHeader;
+      memcpy(&ipHeader, buf + sizeof(struct ether_header), sizeof(struct iphdr));
+      memcpy(buf + sizeof(struct ether_header), &ipHeader, sizeof(struct iphdr));
+
+      if(ipHeader.protocol == IPPROTO_ICMP) {
+        printf("Received ICMP\n");
+
+        struct icmphdr icmpHeader;
+        memcpy(&icmpHeader, buf + sizeof(struct ether_header) + sizeof(struct iphdr), sizeof(struct icmphdr));
+
+          if (icmpHeader.type == ICMP_ECHO) {
+            printf("Received ICMP ECHO\n");
+            //processIcmpEchoRequest(tmpIface, buf, n);
+          } else if (icmpHeader.type == ICMP_ECHOREPLY) {
+            printf("Received ICMP REPLY\n");
+            //processIcmpEchoRequest(tmpIface, buf, n);
+          }
+      }
+
+    } else {
+      printf("Dropping packet\n");
+    }
+
   }
   //exit
   return 0;

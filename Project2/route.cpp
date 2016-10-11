@@ -19,6 +19,7 @@
 void process_arp(char *buf, int rec, (struct sockaddr_ll) socket);
 void process_icmp(char *buf, int rec, (struct sockaddr_ll) socket);
 
+
 struct arp_hdr{
   uint16_t htype;
   uint16_t ptype;

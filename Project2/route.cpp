@@ -217,7 +217,30 @@ void process_icmp(char *buf, int rec){
   struct icmphdr icmpHeader;
   memcpy(&icmpHeader,buf+sizeof(struct ether_header)+sizeof(struct iphdr),sizeof(struct icmphdr));
 
+	if(ip_hdr.protocol == 1){
+		printf("Received ICMP request.\n");
 
+		// switch ethernet headers
+		char tmpmac[6];
+		memcpy(tmpmac,ethHeader.ether_shost,6);
+		memcpy(ethHeader.ether_shost,ethHeader.ether_dhost,6);
+		memcpy(ethHeader.ether_dhost,tmpmac,6);
+
+		// switch ip headers
+		uint32_t tmpip;
+		tmpip = ip_hdr.saddr;
+		ip_hdr.saddr = ip_hdr.daddr;
+		ip_hdr.daddr = tmpip;
+
+		icmpHeader.type = ICMP_ECHOREPLY;
+
+		memcpy(buf,&ethHeader,sizeof(struct ether_header));
+		memcpy(buf+sizeof(struct ether_header),&ip_hdr,sizeof(struct iphdr));
+		memcpy(buf+sizeof(struct ether_header)+sizeof(struct iphdr),&icmpHeader,sizeof(struct icmphdr));
+
+		send(rec,buf,sizeof(buf),0);
+
+	}
 
 	return;
 }

@@ -56,18 +56,17 @@ void processArpRequest(struct interface *tmpIface, char *buf, int length);
 void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length);
 void loadRoutingTable(FILE * fp);
 void interfaceDump();
-int calculateIcmpChecksum(char buf[], int length);
 void SendArpRequest(uint8_t ** haddr, uint32_t daddr, struct interface * tbl_entry);
 int DecrementTTL(char ** buf, int length);
-int calculateIPChecksum(char* buf, int length);
+int calc_checksum(char* data, int length);
 void SendICMPError(struct interface * tmpIface, char *buf, char * haddr, int error);
 void forwardPacket(struct interface * tmpIface, char * buf, int length);
 
-int main() {
+int main(){
 
    //get list of interfaces (actually addresses)
    struct ifaddrs *ifaddr, *tmp;
-   if(getifaddrs(&ifaddr)==-1) {
+   if(getifaddrs(&ifaddr)==-1){
       perror("getifaddrs");
       return 1;
    }
@@ -75,31 +74,33 @@ int main() {
    int router_num;
    //have the list, loop over the list
    printf("Looping through interfaces\n");
-   for(tmp = ifaddr; tmp!=NULL; tmp=tmp->ifa_next) {
+   for(tmp = ifaddr; tmp!=NULL; tmp=tmp->ifa_next){
 
       //printf("Looping through interfaces\n");fflush(stdout);
 
       // lo, eth0(mac), eth0(ip), eth0(?), eth1(mac), eth1(ip), eth1()
 
-      if(strcmp(tmp->ifa_name,"lo") != 0) {
+      if(strcmp(tmp->ifa_name,"lo") != 0){
 
-         tmpIface = malloc(sizeof(struct interface));
-         tmpIface->name = tmp->ifa_name;
-         tmpIface->next = NULL;
-         tmpIface->first = NULL;
+				 struct interface* cur_iface, *prev_iface;
+         cur_iface = malloc(sizeof(struct interface));
+         cur_iface->name = tmp->ifa_name;
+         cur_iface->next = NULL;
+         cur_iface->first = NULL;
+
          if(interfaces == NULL){
-            interfaces = tmpIface;
+            interfaces = cur_iface;
          } else {
-            prevIface->next = tmpIface;
+            prev_iface->next = cur_iface;
          }
 
 
-         if(tmp->ifa_addr->sa_family == AF_INET) {
+         if(tmp->ifa_addr->sa_family == AF_INET){
             // set up ip address
-            tmpIface->paddr = ((struct sockaddr_in *)tmp->ifa_addr)->sin_addr.s_addr;
+            cur_iface->paddr = ((struct sockaddr_in *)tmp->ifa_addr)->sin_addr.s_addr;
             break;
          }
-         else if(tmp->ifa_addr->sa_family == AF_PACKET) {
+         else if(tmp->ifa_addr->sa_family == AF_PACKET){
             int packet_socket;
             printf("Interface: %s\n",tmp->ifa_name);
 
@@ -119,7 +120,7 @@ int main() {
             //ETH_P_ALL indicates we want all (upper layer) protocols
             //we could specify just a specific one
             packet_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-            if(packet_socket<0) {
+            if(packet_socket<0){
                perror("socket");
                return 2;
             }
@@ -131,24 +132,25 @@ int main() {
             //for "packet"), but of course bind takes a struct sockaddr.
             //Here, we can use the sockaddr we got from getifaddrs (which
             //we could convert to sockaddr_ll if we needed to)
-            if(bind(packet_socket,tmp->ifa_addr,sizeof(struct sockaddr_ll))==-1) {
+            if(bind(packet_socket,tmp->ifa_addr,sizeof(struct sockaddr_ll))==-1){
                perror("bind");
             }
             struct timeval tv;
             tv.tv_sec = 0;
             tv.tv_usec = 1000;
-            if (setsockopt(packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+            if (setsockopt(packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0){
                perror("Error");
             }
 
-            tmpIface->packet_socket = packet_socket;
+            cur_iface->packet_socket = packet_socket;
 
 
             int i;
-            for(i = 0; i < MAC_ADDR_LEN; i++) {
-               tmpIface->haddr[i] = ((struct sockaddr_ll*) tmp->ifa_addr)->sll_addr[i];
+            for(i = 0; i < MAC_ADDR_LEN; i++){
+               cur_iface->haddr[i] = ((struct sockaddr_ll*) tmp->ifa_addr)->sll_addr[i];
             }
          }
+         prev_iface = cur_iface;
       }
    }
    //free the interfaces list when we don't need it anymore
@@ -157,19 +159,19 @@ int main() {
    //Get routing table file name and fill the routing table
    FILE *fp = NULL;
    char fileName[50];
-   while(fp == NULL)
-   {
+   while(fp == NULL){
       if(router_num == 1){
-         fileName = "r1-table.txt";
+         strcpy(fileName, "r1-table.txt");
+         //fileName = "r1-table.txt";
          //printf("-----opening table 1\n");
       }else if(router_num == 2){
-         fileName = "r2-table.txt";
+      	 strcpy(fileName, "r2-table.txt");
+         //fileName = "r2-table.txt";
          //printf("-----opening table 2\n");
       }
 
       fp = fopen(fileName, "r");
-      if(fp == NULL)
-      {
+      if(fp == NULL){
          printf("Invalid File Name\n");
          return -1;
       }
@@ -177,13 +179,13 @@ int main() {
 
    loadRoutingTable(fp);
 
-   // interfaceDump();
+   interfaceDump();
    //loop and recieve packets. We are only looking at one interface,
    //for the project you will probably want to look at more (to do so,
    //a good way is to have one socket per interfaces and use select to
    //see which ones have data)
    printf("Ready to recieve\n");
-   while(1) {
+   while(1){
 
       struct interface * interface;
       for(interface = interfaces; interface!=NULL; interface=interface->next) {
@@ -208,14 +210,14 @@ int main() {
          if(n == -1)
             continue;
 
-         printf("Got a %d byte packet\n", n);
+         printf("Got a %d byte packet.\n", n);
 
-         if(ntohs(recvaddr.sll_protocol) == ETH_P_ARP) {
+         if(ntohs(recvaddr.sll_protocol) == ETH_P_ARP){
             printf("Received ARP\n");
 
             processArpRequest(interface, buf, n);
 
-         } else if(ntohs(recvaddr.sll_protocol) == ETH_P_IP) {
+         } else if(ntohs(recvaddr.sll_protocol) == ETH_P_IP){
             printf("Received IP\n");
 
 
@@ -224,22 +226,25 @@ int main() {
             int checksum = ipHeader.check;
             ipHeader.check = 0;
             memcpy(buf + sizeof(struct ether_header), &ipHeader, sizeof(struct iphdr));
-            ipHeader.check = htons(calculateIPChecksum(buf, n));
+
+            char ipbuff[sizeof(ipHeader)];
+            memcpy(ipbuff, &ipHeader, sizeof(ipHeader));
+
+            ipHeader.check = htons(calc_checksum(ipbuff, sizeof(ipbuff)));
             memcpy(buf + sizeof(struct ether_header), &ipHeader, sizeof(struct iphdr));
 
-            if(checksum == ipHeader.check)
-            {
+            if(checksum == ipHeader.check){
 
-               if(ipHeader.protocol == IPPROTO_ICMP) {
+               if(ipHeader.protocol == IPPROTO_ICMP){
                   printf("Received ICMP\n");
 
                   struct icmphdr icmpHeader;
                   memcpy(&icmpHeader, buf + sizeof(struct ether_header) + sizeof(struct iphdr), sizeof(struct icmphdr));
 
-                  if (icmpHeader.type == ICMP_ECHO) {
+                  if (icmpHeader.type == ICMP_ECHO){
                      printf("Received ICMP ECHO\n");
                      processIcmpEchoRequest(interface, buf, n);
-                  } else if (icmpHeader.type == ICMP_ECHOREPLY) {
+                  } else if (icmpHeader.type == ICMP_ECHOREPLY){
                      printf("Received ICMP REPLY\n");
                      processIcmpEchoRequest(interface, buf, n);
                   } else {
@@ -250,9 +255,7 @@ int main() {
                   printf("Recieved something else (not ARP or ICMP)\n");
                   forwardPacket(interface, buf, n);
                }
-            }
-            else
-            {
+            } else {
                printf("Droppin' this packet\n");
             }
             //what else to do is up to you, you can send packets with send,
@@ -267,10 +270,10 @@ int main() {
    return 0;
 }
 
-void interfaceDump() {
+void interfaceDump(){
    struct interface * tmp;
    printf("==================\n");
-   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next) {
+   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next){
       printf("---------\n");
       printf("tmp->name: %s\n", tmp->name);
       printf("MAC: %x:%x:%x:%x:%x:%x\n",
@@ -281,8 +284,7 @@ void interfaceDump() {
       printf("tmp->packet_socket: %d\n", tmp->packet_socket);
       printf("tmp->next: %s\n",(tmp->next == NULL ? "NULL":"NOT NULL"));
       struct tbl_elem * tbl_tmp;
-      for(tbl_tmp = tmp->first; tbl_tmp != NULL; tbl_tmp = tbl_tmp->next)
-      {
+      for(tbl_tmp = tmp->first; tbl_tmp != NULL; tbl_tmp = tbl_tmp->next){
          printf("tbl_tmp->table_paddr: %d\n", tbl_tmp->table_paddr);
          printf("tbl_tmp->dst_addr: %d\n", tbl_tmp->dst_addr);
          printf("tbl_tmp->prefix_len: %d\n", tbl_tmp->prefix_len);
@@ -292,12 +294,11 @@ void interfaceDump() {
    printf("==================\n");
 }
 
-void findInterfaceWithIP(char **ifaceName, uint32_t ipaddress) {
+void findInterfaceWithIP(char **ifaceName, uint32_t ipaddress){
 
    struct interface * tmp;
-   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next) {
-      if(tmp->paddr == ipaddress)
-      {
+   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next){
+      if(tmp->paddr == ipaddress){
          printf("interface name: %s\n", tmp->name);
          *ifaceName = tmp->name;
          return;
@@ -306,12 +307,11 @@ void findInterfaceWithIP(char **ifaceName, uint32_t ipaddress) {
    *ifaceName = NULL;
 }
 
-void findMacWithInterface(uint8_t *self_haddr, char *ifaceName) {
+void findMacWithInterface(uint8_t *self_haddr, char *ifaceName){
 
    struct interface * tmp;
-   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next) {
-      if(strcmp(tmp->name, ifaceName))
-      {
+   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next){
+      if(strcmp(tmp->name, ifaceName)){
          self_haddr = tmp->haddr;
          return;
       }
@@ -319,7 +319,7 @@ void findMacWithInterface(uint8_t *self_haddr, char *ifaceName) {
    self_haddr = NULL;
 }
 
-void processArpRequest(struct interface *tmpIface, char *buf, int length) {
+void processArpRequest(struct interface *tmpIface, char *buf, int length){
 
    struct ether_header ethHeader;
    memcpy(&ethHeader,buf,sizeof(struct ether_header));
@@ -327,8 +327,7 @@ void processArpRequest(struct interface *tmpIface, char *buf, int length) {
    arphdr arpHeader;
    memcpy(&arpHeader,buf+sizeof(struct ether_header),sizeof(arphdr));
 
-   if(arpHeader.opcode == ntohs(ARPOP_REPLY))
-   {
+   if(arpHeader.opcode == ntohs(ARPOP_REPLY)){
       return;
    }
 
@@ -344,7 +343,7 @@ void processArpRequest(struct interface *tmpIface, char *buf, int length) {
       // swap sender ip and target ip
       uint8_t tmpPaddr;
       int i;
-      for(i = 0; i < 4; i++) {
+      for(i = 0; i < 4; i++){
          tmpPaddr = arpHeader.sender_paddr[i];
          arpHeader.sender_paddr[i] = arpHeader.target_paddr[i];
          arpHeader.target_paddr[i] = tmpPaddr;
@@ -352,19 +351,19 @@ void processArpRequest(struct interface *tmpIface, char *buf, int length) {
 
       // move sender mac to target mac
       int j;
-      for(j = 0; j < 6; j++) {
+      for(j = 0; j < 6; j++){
          arpHeader.target_haddr[j] = arpHeader.sender_haddr[j];
       }
 
       // fill in sender mac with self
-      for(j = 0; j < 6; j++) {
+      for(j = 0; j < 6; j++){
          arpHeader.sender_haddr[j] = tmpIface->haddr[j];
       }
 
 
 
       int k;
-      for(k = 0; k < 6; k++ ) {
+      for(k = 0; k < 6; k++ ){
          ethHeader.ether_dhost[k] = ethHeader.ether_shost[k];
          ethHeader.ether_shost[k] = tmpIface->haddr[k];
       }
@@ -378,7 +377,7 @@ void processArpRequest(struct interface *tmpIface, char *buf, int length) {
    }
 }
 
-void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
+void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length){
 
    struct ether_header ethHeader;
    memcpy(&ethHeader,buf,sizeof(struct ether_header));
@@ -390,14 +389,14 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
    memcpy(&icmpHeader,buf+sizeof(struct ether_header)+sizeof(struct iphdr),sizeof(struct icmphdr));
 
    // find interfaces that the message is for
-   printf("trying to find match for target IP\n");
+   printf("Trying to find match for target IP.\n");
 
    char *ifaceName;
 
    findInterfaceWithIP(&ifaceName, ipHeader.daddr);
    // the interfaces name was found
-   if(ifaceName != NULL) {
-      printf("This is for us!\n");
+   if(ifaceName != NULL){
+      printf("This is for us.\n");
       uint8_t *self_haddr = malloc(sizeof(uint8_t) * MAC_ADDR_LEN);
       findMacWithInterface(self_haddr, ifaceName);
 
@@ -414,14 +413,16 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
       icmpHeader.checksum = 0; // Zero out checksum and copy back to buf
       memcpy(buf+sizeof(struct ether_header)+sizeof(struct iphdr),&icmpHeader,sizeof(struct icmphdr));
       int ttl = DecrementTTL(&buf, length);
-      if(ttl < 0)
-      {
+      if(ttl < 0){
          //ICMP error
-         printf("This is where we'd send an ICMP Error... IF WE KNEW HOW\n");
+         printf("Sending ICMP Error.\n");
          SendICMPError(tmpIface, buf, ethHeader.ether_shost, ICMP_TIME_EXCEEDED);
       }
-      icmpHeader.checksum = htons(calculateIcmpChecksum(buf, length));
 
+      char icmp_buff[sizeof(icmpHeader)];
+      memcpy(icmp_buff, &icmpHeader, sizeof(icmpHeader));
+
+      icmpHeader.checksum = htons(calc_checksum(icmp_buff, sizeof(icmpHeader)));
       memcpy(&ipHeader, buf + sizeof(struct ether_header), sizeof(struct iphdr));
       uint32_t tmpAddr;
       tmpAddr = ipHeader.daddr;
@@ -429,7 +430,7 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
       ipHeader.saddr = tmpAddr;
 
       int k;
-      for(k = 0; k < 6; k++ ) {
+      for(k = 0; k < 6; k++ ){
          ethHeader.ether_dhost[k] = ethHeader.ether_shost[k];
          ethHeader.ether_shost[k] = self_haddr[k];
       }
@@ -442,32 +443,26 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
       memcpy(buf+sizeof(struct ether_header)+sizeof(struct iphdr),&icmpHeader,sizeof(struct icmphdr));
 
       send(tmpIface->packet_socket,buf,length,0);
-   }
-   else {
+   } else {
       //ICMP echo is not for us, figure out the correct interfaces to send to
-      printf("This isn't for us\n");
+      printf("This is not for us.\n");
       //Check that address in on our routing table
       struct interface * tbl_entry;
       uint32_t ipVal = getInterfaceFromAddress(ipHeader.daddr, &tbl_entry);
-      if(tbl_entry != NULL)
-      {
+      if(tbl_entry != NULL){
          uint8_t * haddr;
-         if(ipVal == 0) {
+         if(ipVal == 0){
             SendArpRequest(&haddr, ipHeader.daddr, tbl_entry);
          }
-         else
-         {
+         else{
             SendArpRequest(&haddr, ipVal, tbl_entry);
          }
 
-         if(haddr == NULL)
-         {
+         if(haddr == NULL){
             //send ICMP error
             printf("ARP returned no MAC\n");
             SendICMPError(tmpIface, buf, ethHeader.ether_shost, ICMP_DEST_UNREACH);
-         }
-         else
-         {
+         } else {
             printf("ARP returned MAC:\n");
             printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
             haddr[0],haddr[1],
@@ -476,28 +471,28 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
 
             struct ether_header ether_header1;
             ether_header1.ether_type = htons(ETH_P_IP);
-            for(int i = 0; i < 6; i++)
-            {
+            for(int i = 0; i < 6; i++){
                ether_header1.ether_dhost[i] = haddr[i];
                ether_header1.ether_shost[i] = tbl_entry->haddr[i];
             }
             icmpHeader.checksum = 0; // Zero out checksum and copy back to buf
             memcpy(buf+sizeof(struct ether_header)+sizeof(struct iphdr),&icmpHeader,sizeof(struct icmphdr));
             int ttl = DecrementTTL(&buf, length);
-            if(ttl < 0)
-            {
+            if(ttl < 0){
                //ICMP error
-               printf("This is where we'd send an ICMP Error... IF WE KNEW HOW\n");
+               printf("Sending ICMP Error.\n");
+               SendICMPError(tmpIface, buf, ethHeader.ether_shost, ICMP_TIME_EXCEEDED);
             }
-            icmpHeader.checksum = htons(calculateIcmpChecksum(buf, length));
+            char icmp_buff[sizeof(icmpHeader)];
+            memcpy(icmp_buff, &icmpHeader, sizeof(icmpHeader));
+
+            icmpHeader.checksum = htons(calc_checksum(icmp_buff, sizeof(icmpHeader)));
             memcpy(buf, &ether_header1, sizeof(struct ether_header));
             memcpy(buf + sizeof(struct ether_header) + sizeof(struct iphdr), &icmpHeader, sizeof(struct icmphdr));
             send(tbl_entry->packet_socket, buf, length, 0);
          }
 
-      }
-      else
-      {
+      } else {
          printf("Address not found in table, sending error\n");
          SendICMPError(tmpIface, buf, ethHeader.ether_shost, ICMP_DEST_UNREACH);
 
@@ -505,8 +500,7 @@ void processIcmpEchoRequest(struct interface *tmpIface, char *buf, int length) {
    }
 }
 
-void forwardPacket(struct interface * tmpIface, char * buf, int length)
-{
+void forwardPacket(struct interface * tmpIface, char * buf, int length){
 
    struct ether_header ethHeader;
    memcpy(&ethHeader,buf,sizeof(struct ether_header));
@@ -521,7 +515,7 @@ void forwardPacket(struct interface * tmpIface, char * buf, int length)
 
    findInterfaceWithIP(&ifaceName, ipHeader.daddr);
    // the interfaces name was found
-   if(ifaceName != NULL) {
+   if(ifaceName != NULL){
       printf("This is for us!\n");
       uint8_t *self_haddr = malloc(sizeof(uint8_t) * MAC_ADDR_LEN);
       findMacWithInterface(self_haddr, ifaceName);
@@ -540,7 +534,7 @@ void forwardPacket(struct interface * tmpIface, char * buf, int length)
       // ipHeader.saddr = tmpAddr;
 
       int k;
-      for(k = 0; k < 6; k++ ) {
+      for(k = 0; k < 6; k++ ){
          ethHeader.ether_dhost[k] = ethHeader.ether_shost[k];
          ethHeader.ether_shost[k] = self_haddr[k];
       }
@@ -551,31 +545,24 @@ void forwardPacket(struct interface * tmpIface, char * buf, int length)
       // memcpy(buf+sizeof(struct ether_header),&ipHeader,sizeof(struct iphdr));
 
       send(tmpIface->packet_socket,buf,length,0);
-   }
-   else {
+   } else {
       //ICMP echo is not for us, figure out the correct interfaces to send to
       printf("This isn't for us\n");
       //Check that address in on our routing table
       struct interface * tbl_entry;
       uint32_t ipVal = getInterfaceFromAddress(ipHeader.daddr, &tbl_entry);
-      if(tbl_entry != NULL)
-      {
+      if(tbl_entry != NULL){
          uint8_t * haddr;
-         if(ipVal == 0) {
+         if(ipVal == 0){
             SendArpRequest(&haddr, ipHeader.daddr, tbl_entry);
-         }
-         else
-         {
+         } else {
             SendArpRequest(&haddr, ipVal, tbl_entry);
          }
 
-         if(haddr == NULL)
-         {
+         if(haddr == NULL){
             //send ICMP error
             printf("ARP returned no MAC\n");
-         }
-         else
-         {
+         } else {
             printf("ARP returned MAC:\n");
             printf("%02x:%02x:%02x:%02x:%02x:%02x\n",
             haddr[0],haddr[1],
@@ -584,8 +571,7 @@ void forwardPacket(struct interface * tmpIface, char * buf, int length)
 
             struct ether_header ether_header1;
             ether_header1.ether_type = htons(ETH_P_IP);
-            for(int i = 0; i < 6; i++)
-            {
+            for(int i = 0; i < 6; i++){
                ether_header1.ether_dhost[i] = haddr[i];
                ether_header1.ether_shost[i] = tbl_entry->haddr[i];
             }
@@ -593,20 +579,16 @@ void forwardPacket(struct interface * tmpIface, char * buf, int length)
             send(tbl_entry->packet_socket, buf, length, 0);
          }
 
-      }
-      else
-      {
+      } else {
          printf("Address not found in table, sending error\n");
       }
    }
 }
 
-struct interface * getInterfaceFromIFName(char * ifName)
-{
+struct interface * getInterfaceFromIFName(char * ifName){
    struct interface * tmp;
-   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next) {
-      if(strcmp(tmp->name, ifName) == 0)
-      {
+   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next){
+      if(strcmp(tmp->name, ifName) == 0){
          return tmp;
       }
    }
@@ -614,8 +596,7 @@ struct interface * getInterfaceFromIFName(char * ifName)
 }
 
 
-void SendICMPError(struct interface * tmpIface, char * buf, char * haddr, int error)
-{
+void SendICMPError(struct interface * tmpIface, char * buf, char * haddr, int error){
    struct ether_header ethHeader;
 
    struct iphdr ipHeader;
@@ -624,8 +605,7 @@ void SendICMPError(struct interface * tmpIface, char * buf, char * haddr, int er
    struct icmphdr icmpHeader;
    memcpy(&icmpHeader,buf+sizeof(struct ether_header)+sizeof(struct iphdr),sizeof(struct icmphdr));
 
-   for(int i = 0; i < 6; i++)
-   {
+   for(int i = 0; i < 6; i++){
       ethHeader.ether_shost[i] = tmpIface->haddr[i];
       ethHeader.ether_dhost[i] = haddr[i];
    }
@@ -651,24 +631,31 @@ void SendICMPError(struct interface * tmpIface, char * buf, char * haddr, int er
    memcpy(buf, &ethHeader, sizeof(struct ether_header));
    memcpy(buf + sizeof(struct ether_header), &ipHeader, sizeof(struct iphdr));
    memcpy(buf + sizeof(struct ether_header) + sizeof(struct iphdr), &icmpHeader, sizeof(struct icmphdr));
-   ipHeader.check = htons(calculateIPChecksum(buf, length));
+
+   char ipbuff[sizeof(ipHeader)];
+   memcpy(ipbuff, &ipHeader, sizeof(ipHeader));
+
+   ipHeader.check = htons(calc_checksum(ipbuff, sizeof(ipHeader)));
    memcpy(buf + sizeof(struct ether_header), &ipHeader, sizeof(struct iphdr));
-   icmpHeader.checksum = htons(calculateIcmpChecksum(buf, length));
+   char icmp_buff[sizeof(icmpHeader)];
+   memcpy(icmp_buff, &icmpHeader, sizeof(icmpHeader));
+
+   icmpHeader.checksum = htons(calc_checksum(icmp_buff, sizeof(icmpHeader)));
    memcpy(buf + sizeof(struct ether_header) + sizeof(struct iphdr), &icmpHeader, sizeof(struct icmphdr));
 
    send(tmpIface->packet_socket, buf,  length, 0);
 
 }
 
-uint32_t getInterfaceFromAddress(uint32_t daddr, struct interface ** iface) {
+uint32_t getInterfaceFromAddress(uint32_t daddr, struct interface ** iface){
    struct interface * tmp;
-   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next) {
+   for(tmp = interfaces; tmp!=NULL; tmp=tmp->next){
       struct tbl_elem * tbl_tmp;
-      for(tbl_tmp = tmp->first; tbl_tmp!=NULL; tbl_tmp = tbl_tmp->next) {
+      for(tbl_tmp = tmp->first; tbl_tmp!=NULL; tbl_tmp = tbl_tmp->next){
          printf("Prefix len: %d\n", tbl_tmp->prefix_len);
          printf("%x, %x\n", tbl_tmp->table_paddr << (32 - tbl_tmp->prefix_len), daddr << (32 - tbl_tmp->prefix_len));
 
-         if (tbl_tmp->table_paddr << (32 - tbl_tmp->prefix_len) == daddr << (32 - tbl_tmp->prefix_len)) {
+         if (tbl_tmp->table_paddr << (32 - tbl_tmp->prefix_len) == daddr << (32 - tbl_tmp->prefix_len)){
             *iface = tmp;
             return tbl_tmp->dst_addr;
          }
@@ -678,15 +665,12 @@ uint32_t getInterfaceFromAddress(uint32_t daddr, struct interface ** iface) {
    return 0;
 }
 
-void loadRoutingTable(FILE *fp)
-{
+void loadRoutingTable(FILE *fp){
    char line[35];
-   while(fgets(line, sizeof(line), fp) != NULL)
-   {
+   while(fgets(line, sizeof(line), fp) != NULL){
       char ip[INET_ADDRSTRLEN];
       int count = 0;
-      while(line[count] != '/')
-      {
+      while(line[count] != '/'){
          ip[count] = line[count];
          count++;
       }
@@ -697,26 +681,22 @@ void loadRoutingTable(FILE *fp)
       count++;
       int length;
       sscanf(&line[count], "%d", &length);
-      while(line[count] != ' ')
-      {
+      while(line[count] != ' '){
          count++;
       }
       count++;
 
       uint32_t dst_addr;
       char temp_ip[INET_ADDRSTRLEN];
-      if(line[count] == '-')
-      {
+      if(line[count] == '-'){
          dst_addr = 0;
       }
-      else
-      {
+      else{
          sscanf(&line[count], "%s", temp_ip);
          printf("%s\n\n", temp_ip);
          dst_addr = (uint32_t)inet_addr(temp_ip);
       }
-      while(line[count] != ' ')
-      {
+      while(line[count] != ' '){
          count++;
       }
 
@@ -726,20 +706,17 @@ void loadRoutingTable(FILE *fp)
       sscanf(&line[count], "%s", ifName);
 
       struct interface * iface = getInterfaceFromIFName(ifName);
-      if(iface->first == NULL)
-      {
+      if(iface->first == NULL){
          iface->first = malloc(sizeof(struct tbl_elem));
          iface->first->table_paddr =(uint32_t)inet_addr(ip);
          iface->first->dst_addr = dst_addr;
          iface->first->prefix_len = length;
          iface->first->next = NULL;
       }
-      else
-      {
+      else{
          struct tbl_elem * prev = iface->first;
          struct tbl_elem * tmp;
-         for(tmp = prev->next; tmp != NULL; tmp = tmp->next)
-         {
+         for(tmp = prev->next; tmp != NULL; tmp = tmp->next){
             prev = tmp;
          }
          prev->next = malloc(sizeof(struct tbl_elem));
@@ -751,26 +728,7 @@ void loadRoutingTable(FILE *fp)
    }
 }
 
-int calculateIcmpChecksum(char buf[], int length){
-
-   int lengthToIcmp = sizeof(struct ether_header)+sizeof(struct iphdr);
-   int icmpDataLength = length - (sizeof(struct ether_header)+sizeof(struct iphdr)+sizeof(struct icmphdr)+8);
-   int icmpLength = (sizeof(struct icmphdr) + 8 + icmpDataLength);
-
-   struct icmphdr icmpHeader;
-   memcpy(&icmpHeader,&buf+lengthToIcmp,sizeof(struct icmphdr));
-
-   unsigned int checksum = 0;
-   int i;
-   for(i = 0; i < icmpLength; i+=2) {
-      checksum += (uint32_t) ((uint8_t) buf[lengthToIcmp+i] << 8 | (uint8_t) buf[lengthToIcmp+i+1]);
-   }
-   checksum = (checksum >> 16) + (checksum & 0xffff);
-   return (uint16_t) ~checksum;
-}
-
-int DecrementTTL(char ** buf, int length)
-{
+int DecrementTTL(char ** buf, int length){
    printf("Decrementing TTL\n");
    struct iphdr ipHeader;
    memcpy(&ipHeader, *buf + sizeof(struct ether_header), sizeof(struct iphdr));
@@ -780,37 +738,34 @@ int DecrementTTL(char ** buf, int length)
       ipHeader.ttl = ipHeader.ttl - 1;
       ipHeader.check = 0;
       memcpy(*buf + sizeof(struct ether_header), &ipHeader, sizeof(ipHeader));
-      ipHeader.check = ntohs(calculateIPChecksum(*buf, length));
+
+      char ipbuff[sizeof(ipHeader)];
+      memcpy(ipbuff, &ipHeader, sizeof(ipHeader));
+
+      ipHeader.check = htons(calc_checksum(ipbuff, sizeof(ipbuff)));
       memcpy(*buf + sizeof(struct ether_header), &ipHeader, sizeof(ipHeader));
       return ipHeader.ttl;
    }
 }
 
-int calculateIPChecksum(char* buf, int length)
-{
-   int lengthToIP = sizeof(struct ether_header);
-   int ipLength = sizeof(struct iphdr);
-
-   struct iphdr ipHeader;
-   memcpy(&ipHeader, &buf + lengthToIP, sizeof(struct iphdr));
+int calc_checksum(char* data, int length){
 
    unsigned int checksum = 0;
 
    int i;
-   for(i = 0; i < ipLength; i+=2)
-   {
-      checksum += (uint32_t) ((uint8_t) buf[lengthToIP+i] << 8 | (uint8_t) buf[lengthToIP + i + 1]);
+   for(i = 0; i < length; i+=2){
+      checksum += *(uint16_t *) &data[i];
    }
 
    checksum = (checksum >> 16) + (checksum & 0xffff);
    return (uint16_t) ~checksum;
 }
 
-void SendArpRequest(uint8_t ** haddr, uint32_t daddr, struct interface * tbl_entry) {
+void SendArpRequest(uint8_t ** haddr, uint32_t daddr, struct interface * tbl_entry){
    struct ether_header eth;
    eth.ether_type = htons(ETH_P_ARP);
    memcpy(eth.ether_shost, tbl_entry->haddr, 6);
-   for (int i = 0; i < 6; i++) {
+   for (int i = 0; i < 6; i++){
       eth.ether_dhost[i] = 255;
    }
 
@@ -827,7 +782,7 @@ void SendArpRequest(uint8_t ** haddr, uint32_t daddr, struct interface * tbl_ent
    arp_header.target_paddr[1] = (uint8_t) (daddr >> 8);
    arp_header.target_paddr[0] = (uint8_t) (daddr);
 
-   for (int i = 0; i < 6; i++) {
+   for (int i = 0; i < 6; i++){
       arp_header.target_haddr[i] = 0;
    }
    arp_header.sender_paddr[3] = (uint8_t) (tbl_entry->paddr>> 24);
@@ -849,30 +804,28 @@ void SendArpRequest(uint8_t ** haddr, uint32_t daddr, struct interface * tbl_ent
    struct timeval tv;
    tv.tv_sec = 0;
    tv.tv_usec = 1000 * 20;
-   if (setsockopt(tbl_entry->packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+   if (setsockopt(tbl_entry->packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0){
       perror("Error");
    }
 
    int recvaddrlen = sizeof(struct sockaddr_ll);
    int n = recvfrom(tbl_entry->packet_socket, buffer, 1500, 0, (struct sockaddr*)&recvaddr, &recvaddrlen);
    printf("%d\n", n);
-   if(n < 1)
-   {
+   if(n < 1){
       *haddr = NULL;
       return;
    }
 
    tv.tv_sec = 0;
    tv.tv_usec = 1000;
-   if (setsockopt(tbl_entry->packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
+   if (setsockopt(tbl_entry->packet_socket, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0){
       perror("Error");
    }
 
    arphdr new_arphdr;
    memcpy(&new_arphdr, buffer + sizeof(struct ether_header), sizeof(arphdr));
    *haddr = malloc(sizeof(uint8_t) * 6);
-   for(int i = 0; i < 6; i++)
-   {
+   for(int i = 0; i < 6; i++){
       (*haddr)[i] = new_arphdr.sender_haddr[i];
    }
 }

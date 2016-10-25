@@ -235,16 +235,16 @@ int main(){
 
                         if (icmp_header.type == ICMP_ECHO){
 							printf("Received ICMP ECHO\n");
-                            processIcmpEchoRequest(curr_iface, buff, n);
+                            process_ICMP(curr_iface, buff, n);
                         } else if (icmp_header.type == ICMP_ECHOREPLY){
 							printf("Received ICMP REPLY\n");
-                            processIcmpEchoRequest(curr_iface, buff, n);
+                            process_ICMP(curr_iface, buff, n);
                         } else {
-                            forwardPacket(curr_iface, buff, n);
+                            forward_packet(curr_iface, buff, n);
                         }
 
                     } else {
-                        forwardPacket(curr_iface, buff, n);
+                        forward_packet(curr_iface, buff, n);
                     }
                 } else {
                     printf("Droppin' this packet\n\n");
@@ -355,7 +355,7 @@ void process_ICMP(struct interface *iface, char *buff, int length){
         memcpy(buff+sizeof(struct ether_header)+sizeof(struct iphdr),&icmp_header,sizeof(struct icmphdr));
         int ttl = decrement_TTL(&buff, length);
         if(ttl < 0){
-            SendICMPError(iface, buff, eth_header.ether_shost, ICMP_TIME_EXCEEDED);
+            send_icmp_error(iface, buff, eth_header.ether_shost, ICMP_TIME_EXCEEDED);
         }
 
         char icmp_buff[sizeof(struct icmphdr)+8];
@@ -386,19 +386,19 @@ void process_ICMP(struct interface *iface, char *buff, int length){
         //ICMP echo is not for us, figure out the correct interfaces to send to
         //Check that address in on our routing table
         struct interface * tbl_entry;
-        uint32_t ipVal = getInterfaceFromAddress(ip_header.daddr, &tbl_entry);
+        uint32_t ipVal = get_interface(ip_header.daddr, &tbl_entry);
         if(tbl_entry != NULL){
             uint8_t * haddr;
             if(ipVal == 0){
-                SendArpRequest(&haddr, ip_header.daddr, tbl_entry);
+                send_arp_request(&haddr, ip_header.daddr, tbl_entry);
             }
             else{
-                SendArpRequest(&haddr, ipVal, tbl_entry);
+                send_arp_request(&haddr, ipVal, tbl_entry);
             }
 
             if(haddr == NULL){
                 //send ICMP error
-                SendICMPError(iface, buff, eth_header.ether_shost, ICMP_DEST_UNREACH);
+                send_icmp_error(iface, buff, eth_header.ether_shost, ICMP_DEST_UNREACH);
             } else {
                 struct ether_header ether_header1;
                 ether_header1.ether_type = htons(ETH_P_IP);
@@ -411,7 +411,7 @@ void process_ICMP(struct interface *iface, char *buff, int length){
                 int ttl = decrement_TTL(&buff, length);
                 if(ttl < 0){
                     //ICMP error
-                    SendICMPError(iface, buff, eth_header.ether_shost, ICMP_TIME_EXCEEDED);
+                    send_icmp_error(iface, buff, eth_header.ether_shost, ICMP_TIME_EXCEEDED);
                 }
                 char icmp_buff[sizeof(struct icmphdr)+8];
                 memcpy(icmp_buff, &buff+sizeof(struct ether_header)+sizeof(struct iphdr), sizeof(struct icmphdr)+8);
@@ -423,7 +423,7 @@ void process_ICMP(struct interface *iface, char *buff, int length){
             }
 
         } else {
-            SendICMPError(iface, buff, eth_header.ether_shost, ICMP_DEST_UNREACH);
+            send_icmp_error(iface, buff, eth_header.ether_shost, ICMP_DEST_UNREACH);
         }
     }
 }
@@ -472,13 +472,13 @@ void forward_packet(struct interface * iface, char * buff, int length){
         //ICMP echo is not for us, figure out the correct interfaces to send to
         //Check that address in on our routing table
         struct interface * tbl_entry;
-        uint32_t ipVal = getInterfaceFromAddress(ip_header.daddr, &tbl_entry);
+        uint32_t ipVal = get_interface(ip_header.daddr, &tbl_entry);
         if(tbl_entry != NULL){
             uint8_t * haddr;
             if(ipVal == 0){
-                SendArpRequest(&haddr, ip_header.daddr, tbl_entry);
+                send_arp_request(&haddr, ip_header.daddr, tbl_entry);
             } else {
-                SendArpRequest(&haddr, ipVal, tbl_entry);
+                send_arp_request(&haddr, ipVal, tbl_entry);
             }
 
             if(haddr == NULL){

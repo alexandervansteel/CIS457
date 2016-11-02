@@ -30,15 +30,14 @@ func Read(con net.Conn) string {
 func clientsender(cn net.Conn, name []byte) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print(append(name,[]byte(" > ")...))
+		//fmt.Print(name)
 		input, _ := reader.ReadBytes('\n')
     if bytes.Equal(input, []byte("/quit\n")) {
 			cn.Write([]byte("/quit"))
 			running = false
 			break
 		}
-    message []byte = input[0 : len(input)-1]
-		cn.Write(message)
+		cn.Write([]byte(input[0 : len(input)-1]))
 	}
 }
 

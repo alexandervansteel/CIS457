@@ -101,8 +101,8 @@ func clientsender(client *ClientChat) {
 // start the clientsender/receiver, add client to list.
 func clientHandling(con net.Conn, ch chan string, lst *list.List) {
 	buf := make([]byte, 1024)
-	con.Read(buf)
-	name := string(buf)
+	bytenum,_ := con.Read(buf)
+	name := string(buf[0:bytenum])
 	newclient := &ClientChat{name, make(chan string), ch, con, make(chan bool), lst}
 
 	go clientsender(newclient)

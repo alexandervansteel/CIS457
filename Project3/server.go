@@ -59,19 +59,29 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 	for {
 		input := <-IN // input, get from client
 
-    // checks to see if the message is a pm, and then sends it to the specified person
-		is_pm := false
-		fmt.Println(input) // input is a string
+		// checks to see if the message is a pm, and then sends it to the specified person
+		broadcast := true
+		fmt.Println(input) // prints everything server side for debug
 		for val := lst.Front(); val != nil; val = val.Next() {
 			client := val.Value.(ClientChat)
 			if strings.Contains(input, "/"+client.Name) {
 				client.IN <- input
-				is_pm = true
+				broadcast = false
+			}
+		}
+
+		// removes specified client(s) from server
+		for val := lst.Front(); val != nil; val = val.Next() {
+			client := val.Value.(ClientChat)
+			if strings.Contains(input, "/kick") && strings.Contains(input, client.Name) {
+				client.IN <- "You have been removed from the server.\n"
+				client.Close()
+				broadcast = false
 			}
 		}
 
 		// send to all client if the message is not a pm
-		if is_pm == false {
+		if broadcast == true {
 			for val := lst.Front(); val != nil; val = val.Next() {
 				client := val.Value.(ClientChat)
 				client.IN <- input

@@ -1,10 +1,11 @@
 package main
 
 import (
-	//"fmt";
 	"bytes"
 	"container/list"
+	"fmt"
 	"net"
+	"strings"
 )
 
 type ClientChat struct {
@@ -57,10 +58,24 @@ func (c *ClientChat) deleteFromList() {
 func handlingINOUT(IN <-chan string, lst *list.List) {
 	for {
 		input := <-IN // input, get from client
-		// send to all client back
+
+    // checks to see if the message is a pm, and then sends it to the specified person
+		is_pm := false
+		fmt.Println(input) // input is a string
 		for val := lst.Front(); val != nil; val = val.Next() {
 			client := val.Value.(ClientChat)
-			client.IN <- input
+			if strings.Contains(input, "/"+client.Name) {
+				client.IN <- input
+				is_pm = true
+			}
+		}
+
+		// send to all client if the message is not a pm
+		if is_pm == false {
+			for val := lst.Front(); val != nil; val = val.Next() {
+				client := val.Value.(ClientChat)
+				client.IN <- input
+			}
 		}
 	}
 }
@@ -101,7 +116,7 @@ func clientsender(client *ClientChat) {
 // start the clientsender/receiver, add client to list.
 func clientHandling(con net.Conn, ch chan string, lst *list.List) {
 	buf := make([]byte, 1024)
-	bytenum,_ := con.Read(buf)
+	bytenum, _ := con.Read(buf)
 	name := string(buf[0:bytenum])
 	newclient := &ClientChat{name, make(chan string), ch, con, make(chan bool), lst}
 

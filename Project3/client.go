@@ -22,7 +22,6 @@ func Read(con net.Conn) string {
 	}
   n := bytes.IndexByte(buf, 0)
 	str := string(buf[:n])
-	fmt.Println()
 	return string(str)
 }
 

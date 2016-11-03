@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	//	"strings"
 	"time"
+  "strings"
 )
 
 var running bool // global variable if client is running
@@ -23,6 +23,14 @@ func Read(con net.Conn) string {
 	}
 	n := bytes.IndexByte(buf, 0)
 	str := string(buf[:n])
+
+  err_message := "You have been removed from the server.\n"
+  if strings.Compare(string(str), err_message) == 0 {
+    con.Close()
+    running = false
+    return string(str)
+  }
+
 	return string(str)
 }
 
@@ -43,13 +51,8 @@ func clientsender(cn net.Conn, name []byte) {
 
 // clientreceiver(): wait for input from network and print it out
 func clientreceiver(cn net.Conn) {
-	//	error_message := "You have been removed from the server.\n"
 	for running {
-		fmt.Println(Read(cn))
-		//		if strings.Compare(fmt.Sprintln(Read(cn)), error_message) == 0 {
-		//			fmt.Println(Read(cn))
-		//			cn.Close()
-		//		}
+		fmt.Println(Read(cn)) // cn is of type *net.Conn
 	}
 }
 

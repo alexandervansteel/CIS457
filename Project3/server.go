@@ -82,10 +82,10 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 			for val := lst.Front(); val != nil; val = val.Next() {
         client := val.Value.(ClientChat)
         if strings.Contains(input, "/who") {
-          client_list := " > "
+          client_list := "Currently Connected > "
           for e:= lst.Front(); e != nil; e = e.Next() {
             clients := e.Value.(ClientChat)
-            client_list += clients.Name + " >"
+            client_list += clients.Name + " > "
           }
           client.IN <- client_list
 				} else {

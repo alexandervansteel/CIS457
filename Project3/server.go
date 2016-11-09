@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+  "os"
 )
 
 type ClientChat struct {
@@ -148,6 +149,14 @@ func main() {
 	clientlist := list.New()
 	in := make(chan string)
 	go handlingINOUT(in, clientlist)
+
+  host, _ := os.Hostname()
+  addrs, _ := net.LookupIP(host)
+  for _, addr := range addrs {
+      if ipv4 := addr.To4(); ipv4 != nil {
+          fmt.Println("IPv4: ", ipv4)
+      }
+  }
 
 	// create the connection
 	netlisten, _ := net.Listen("tcp", "127.0.0.1:9988")

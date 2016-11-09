@@ -70,7 +70,7 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 			}
 
 			// removes specified client(s) from server
-			if strings.Contains(input, "/kick") && strings.Contains(input, client.Name) {
+			if strings.Contains(input, "/kick") && strings.Contains(input, "-"+client.Name) {
 				client.IN <- "You have been removed from the server.\n"
 				client.Close()
 				broadcast = false
@@ -151,6 +151,7 @@ func main() {
 
 	// create the connection
 	netlisten, _ := net.Listen("tcp", "127.0.0.1:9988")
+  fmt.Println("Server Listening...")
 	defer netlisten.Close()
 
 	for {

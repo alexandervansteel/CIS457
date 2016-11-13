@@ -5,8 +5,9 @@ import (
 	"container/list"
 	"fmt"
 	"net"
+	"os"
 	"strings"
-  "os"
+  "./encrypt"
 )
 
 type ClientChat struct {
@@ -81,17 +82,17 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 		// send to all client if the message is not a pm
 		if broadcast == true {
 			for val := lst.Front(); val != nil; val = val.Next() {
-        client := val.Value.(ClientChat)
-        if strings.Contains(input, "/who") {
-          client_list := "Currently Connected > "
-          for e:= lst.Front(); e != nil; e = e.Next() {
-            clients := e.Value.(ClientChat)
-            client_list += clients.Name + " > "
-          }
-          client.IN <- client_list
+				client := val.Value.(ClientChat)
+				if strings.Contains(input, "/who") {
+					client_list := "Currently Connected > "
+					for e := lst.Front(); e != nil; e = e.Next() {
+						clients := e.Value.(ClientChat)
+						client_list += clients.Name + " > "
+					}
+					client.IN <- client_list
 				} else {
-          client.IN <- input
-      }
+					client.IN <- input
+				}
 			}
 		}
 	}
@@ -150,17 +151,17 @@ func main() {
 	in := make(chan string)
 	go handlingINOUT(in, clientlist)
 
-  host, _ := os.Hostname()
-  addrs, _ := net.LookupIP(host)
-  for _, addr := range addrs {
-      if ipv4 := addr.To4(); ipv4 != nil {
-          fmt.Println("IPv4: ", ipv4)
-      }
-  }
+	host, _ := os.Hostname()
+	addrs, _ := net.LookupIP(host)
+	for _, addr := range addrs {
+		if ipv4 := addr.To4(); ipv4 != nil {
+			fmt.Println("IPv4: ", ipv4)
+		}
+	}
 
 	// create the connection
 	netlisten, _ := net.Listen("tcp", "127.0.0.1:9988")
-  fmt.Println("Server Listening...")
+	fmt.Println("Server Listening...")
 	defer netlisten.Close()
 
 	for {

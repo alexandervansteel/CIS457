@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
-  "strings"
+  "./encrypt"
 )
 
 var running bool // global variable if client is running
@@ -24,12 +25,12 @@ func Read(con net.Conn) string {
 	n := bytes.IndexByte(buf, 0)
 	str := string(buf[:n])
 
-  err_message := "You have been removed from the server.\n"
-  if strings.Compare(string(str), err_message) == 0 {
-    con.Close()
-    running = false
-    return string(str)
-  }
+	err_message := "You have been removed from the server.\n"
+	if strings.Compare(string(str), err_message) == 0 {
+		con.Close()
+		running = false
+		return string(str)
+	}
 
 	return string(str)
 }

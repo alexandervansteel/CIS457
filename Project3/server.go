@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"container/list"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
+	// "crypto/rand"
+	// "crypto/rsa"
+	// "crypto/x509"
 	"fmt"
 	"net"
 	"os"
@@ -79,7 +80,6 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 			// removes specified client(s) from server
 			if strings.Contains(input, "/kick") && strings.Contains(input, "-"+client.Name) {
 				client.IN <- "You have been removed from the server.\n"
-				client.Close()
 				broadcast = false
 			}
 		}
@@ -117,6 +117,7 @@ func clientreceiver(client *ClientChat, key []byte) {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+
 		if strings.TrimSpace(msg) == "/quit" {
 			client.Close()
 			break
@@ -153,7 +154,9 @@ func clientsender(client *ClientChat, key []byte) {
 // clientHandling(): get the username and create the clientsturct
 // start the clientsender/receiver, add client to list.
 func clientHandling(con net.Conn, ch chan string, lst *list.List, privkey []byte, pubkey []byte) {
-	con.Write(pubkey)
+	/* key stuff removed for testing
+	   con.Write(pubkey)
+
 	buf := make([]byte, 1024)
 	con.Read(buf)
 	n := bytes.IndexByte(buf, 0)
@@ -164,11 +167,13 @@ func clientHandling(con net.Conn, ch chan string, lst *list.List, privkey []byte
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	key := strings.TrimSpace(clientkey)
+	*/
+	key := pubkey
+	//key := strings.TrimSpace(clientkey)
+	buf := make([]byte, 1024)
 	con.Read(buf)
-	n = bytes.IndexByte(buf, 0)
-	s = string(buf[:n])
+	n := bytes.IndexByte(buf, 0)
+	s := string(buf[:n])
 	name, err := mycrypto.Decrypt([]byte(key), s)
 	if err != nil {
 		fmt.Println("Error in clientHandling() reading name.")
@@ -185,44 +190,77 @@ func clientHandling(con net.Conn, ch chan string, lst *list.List, privkey []byte
 }
 
 func main() {
-	// generate private key
-	privatekey, err := rsa.GenerateKey(rand.Reader, 1024)
+	privkey := []byte("thisisatempkeyfortesting")
+	pubkey := []byte("thisisatempkeyfortesting")
+	/* key generation that is going to be ignored for now
+	     // generate private key
+	   	privatekey, err := rsa.GenerateKey(rand.Reader, 1024)
 
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	   	if err != nil {
+	   		fmt.Println(err)
+	   		os.Exit(1)
+	   	}
 
-	var publickey *rsa.PublicKey
-	publickey = &privatekey.PublicKey
+	   	var publickey *rsa.PublicKey
+	   	publickey = &privatekey.PublicKey
 
-	pubkey, err := x509.MarshalPKIXPublicKey(publickey)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	   	pubkey, err := x509.MarshalPKIXPublicKey(publickey)
+	   	if err != nil {
+	   		fmt.Println(err)
+	   		os.Exit(1)
+	   	}
 
-	privkey := x509.MarshalPKCS1PrivateKey(privatekey)
+	   	privkey := x509.MarshalPKCS1PrivateKey(privatekey)
 
-	fmt.Println(string(privkey))
-	fmt.Println(string(pubkey))
+	   	fmt.Println(string(privkey))
+	   	fmt.Println(string(pubkey))
+	*/
 
 	// create the list of clients
 	clientlist := list.New()
 	in := make(chan string)
 	go handlingINOUT(in, clientlist)
 
-	host, _ := os.Hostname()
-	addrs, _ := net.LookupIP(host)
+	host, err := os.Hostname()
+	if err != nil {
+		fmt.Println("Error getting host", err)
+		os.Exit(1)
+	}
+	addrs, err := net.LookupIP(host)
+	if err != nil {
+		fmt.Println("Error looking up IP", err)
+		os.Exit(1)
+	}
 	for _, addr := range addrs {
 		if ipv4 := addr.To4(); ipv4 != nil {
 			fmt.Println("IPv4: ", ipv4)
+			ip := ipv4.String()
+			fmt.Println(ip)
 		}
 	}
-
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Enter the IP address: ")
+	ip, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading IP Address", err)
+		os.Exit(1)
+	}
+	fmt.Println("Enter the port number: ")
+	port, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading port number", err)
+		os.Exit(1)
+	}
 	// create the connection
-	netlisten, _ := net.Listen("tcp", "127.0.0.1:9988")
-	fmt.Println("Server Listening...")
+	dest := strings.TrimSpace(ip) + ":" + strings.TrimSpace(port)
+	fmt.Println(dest)
+	//netlisten, _ := net.Listen("tcp", "127.0.0.1:9988")
+	netlisten, err := net.Listen("tcp", string(dest))
+	if err != nil {
+		fmt.Println("Error Listening", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Server Listening on IP %s and Port %s\n", strings.TrimSpace(ip), strings.TrimSpace(port))
 	defer netlisten.Close()
 
 	for {

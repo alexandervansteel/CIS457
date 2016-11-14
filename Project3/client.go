@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	// "crypto/rand"
 	"fmt"
 	"net"
 	"os"
@@ -79,7 +80,7 @@ func clientsender(cn net.Conn, name []byte, key []byte) {
 // clientreceiver(): wait for input from network and print it out
 func clientreceiver(cn net.Conn, key []byte) {
 	for running {
-		fmt.Println(Read(cn, key))
+		fmt.Println(strings.TrimSpace(Read(cn, key)))
 	}
 }
 
@@ -100,11 +101,28 @@ func GenSymmetricKey(bits int) (k []byte, err error) {
 func main() {
 	running = true
 
-	// connect
-	destination := "127.0.0.1:9988"
-	cn, _ := net.Dial("tcp", destination)
-	defer cn.Close()
+	symkey := []byte("thisisatempkeyfortesting")
 
+	// connect
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Enter the IP address: ")
+	ip, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading IP Address", err)
+		os.Exit(1)
+	}
+	fmt.Println("Enter the port number: ")
+	port, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading port number", err)
+		os.Exit(1)
+	}
+	dest := strings.TrimSpace(ip) + ":" + strings.TrimSpace(port)
+	fmt.Println(dest)
+	//dest:= "127.0.0.1:9988"
+	cn, _ := net.Dial("tcp", dest)
+	defer cn.Close()
+	/* key stuff removed for testing
 	// load public key
 	buf := make([]byte, 4096)
 	//cn.Read(buf)
@@ -136,10 +154,9 @@ func main() {
 	}
 
 	cn.Write([]byte(msg))
-
+	*/
 	// get the user name
 	fmt.Print("Please give your name: ")
-	reader := bufio.NewReader(os.Stdin)
 	name, _ := reader.ReadString('\n')
 	encrypted_name, err := mycrypto.Encrypt(symkey, name)
 	if err != nil {

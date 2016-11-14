@@ -3,58 +3,98 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 	"time"
-  "./encrypt"
+
+	"./mycrypto"
+)
+
+const (
+	keySizeError string = "Key size error" // Key size error message.
 )
 
 var running bool // global variable if client is running
 
 // read from connection and return true if ok
-func Read(con net.Conn) string {
+func Read(con net.Conn, key []byte) string {
 	buf := make([]byte, 2048)
 	_, err := con.Read(buf)
 	if err != nil {
 		con.Close()
 		running = false
-		return "Error in reading!"
+		return "Connection Terminated"
 	}
 	n := bytes.IndexByte(buf, 0)
-	str := string(buf[:n])
-
-	err_message := "You have been removed from the server.\n"
-	if strings.Compare(string(str), err_message) == 0 {
-		con.Close()
-		running = false
-		return string(str)
+	s := string(buf[:n])
+	msg, err := mycrypto.Decrypt(key, s)
+	if err != nil {
+		fmt.Println("Error in Read()")
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	return string(str)
+	err_message := "You have been removed from the server.\n"
+	if strings.Compare(string(msg), err_message) == 0 {
+		con.Close()
+		running = false
+		return msg
+	}
+
+	return msg
 }
 
 // clientsender(): read from stdin and send it via network
-func clientsender(cn net.Conn, name []byte) {
+func clientsender(cn net.Conn, name []byte, key []byte) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		//fmt.Print(name)
-		input, _ := reader.ReadBytes('\n')
-		if bytes.Equal(input, []byte("/quit\n")) {
-			cn.Write([]byte("/quit"))
+		input, _ := reader.ReadString('\n')
+		if strings.TrimSpace(input) == "/quit" {
+			msg, err := mycrypto.Encrypt(key, input)
+			if err != nil {
+				fmt.Println("Error in clientsender() for /quit")
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			cn.Write([]byte(msg))
+			cn.Close()
 			running = false
 			break
 		}
-		cn.Write([]byte(input[0 : len(input)-1]))
+		//cn.Write([]byte(input[0 : len(input)-1]))
+		msg, err := mycrypto.Encrypt(key, input)
+		if err != nil {
+			fmt.Println("Error in clientsender() for regular message")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		cn.Write([]byte(msg))
 	}
 }
 
 // clientreceiver(): wait for input from network and print it out
-func clientreceiver(cn net.Conn) {
+func clientreceiver(cn net.Conn, key []byte) {
 	for running {
-		fmt.Println(Read(cn)) // cn is of type *net.Conn
+		fmt.Println(Read(cn, key))
 	}
+}
+
+func GenSymmetricKey(bits int) (k []byte, err error) {
+	if bits <= 0 || bits%8 != 0 {
+		return nil, fmt.Errorf(keySizeError)
+	}
+
+	size := bits / 8
+	k = make([]byte, size)
+	if _, err = rand.Read(k); err != nil {
+		return nil, err
+	}
+
+	return k, nil
 }
 
 func main() {
@@ -65,17 +105,53 @@ func main() {
 	cn, _ := net.Dial("tcp", destination)
 	defer cn.Close()
 
-	// get the user name
-	fmt.Print("Please give you name: ")
-	reader := bufio.NewReader(os.Stdin)
-	name, _ := reader.ReadBytes('\n')
+	// load public key
+	buf := make([]byte, 4096)
+	//cn.Read(buf)
+	n, err := cn.Read(buf)
+	if err != nil {
+		fmt.Println("Error in client main() for receive key")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	s := string(buf[:n])
+	s = strings.TrimSpace(s)
+	fmt.Println(s)
+	pubkey := []byte(s)
+	//generate symmetric key
+	symkey, err := GenSymmetricKey(1024)
+	if err != nil {
+		fmt.Println("Error in client main() for generate key")
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	//cn.Write(strings.Bytes("User: "));
-	cn.Write(name[0 : len(name)-1])
+	//strkey := x509.MarshalPKCS1PrivateKey(symkey)
+
+	msg, err := mycrypto.Encrypt(pubkey, string(symkey))
+	if err != nil {
+		fmt.Println("Error in client main() for encrypt key")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	cn.Write([]byte(msg))
+
+	// get the user name
+	fmt.Print("Please give your name: ")
+	reader := bufio.NewReader(os.Stdin)
+	name, _ := reader.ReadString('\n')
+	encrypted_name, err := mycrypto.Encrypt(symkey, name)
+	if err != nil {
+		fmt.Println("Error with name encryption")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	cn.Write([]byte(encrypted_name))
 
 	// start receiver and sender
-	go clientreceiver(cn)
-	go clientsender(cn, name)
+	go clientreceiver(cn, symkey)
+	go clientsender(cn, []byte(name), symkey)
 
 	// wait for quiting (/quit). run until running is true
 	for running {

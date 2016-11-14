@@ -3,15 +3,20 @@ package main
 import (
 	"bytes"
 	"container/list"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"os"
 	"strings"
-  "./encrypt"
+
+	"./mycrypto"
 )
 
 type ClientChat struct {
 	Name      string      // name of user
+	key       string      // client key
 	IN        chan string // input channel for to send to user
 	OUT       chan string // input channel from user to all
 	Con       net.Conn    // connection of client
@@ -63,7 +68,7 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 
 		// checks to see if the message is a pm, and then sends it to the specified person
 		broadcast := true
-		fmt.Println(input) // prints everything server side for debug
+		fmt.Println(strings.TrimSpace(input)) // prints everything server side for debug
 		for val := lst.Front(); val != nil; val = val.Next() {
 			client := val.Value.(ClientChat)
 			if strings.Contains(input, "/"+client.Name) {
@@ -87,7 +92,7 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 					client_list := "Currently Connected > "
 					for e := lst.Front(); e != nil; e = e.Next() {
 						clients := e.Value.(ClientChat)
-						client_list += clients.Name + " > "
+						client_list += strings.TrimSpace(clients.Name) + " > "
 					}
 					client.IN <- client_list
 				} else {
@@ -100,29 +105,44 @@ func handlingINOUT(IN <-chan string, lst *list.List) {
 
 // clientreceiver wait for an input from network, after geting data it send to
 // handlingINOUT via a channel.
-func clientreceiver(client *ClientChat) {
+func clientreceiver(client *ClientChat, key []byte) {
 	buf := make([]byte, 2048)
-	for client.Read(buf) {
-		if bytes.Equal(buf, []byte("/quit")) {
+	for {
+		client.Read(buf)
+		n := bytes.IndexByte(buf, 0)
+		s := string(buf[:n])
+		msg, err := mycrypto.Decrypt(key, s)
+		if err != nil {
+			fmt.Println("Error in clientreceiver()")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		if strings.TrimSpace(msg) == "/quit" {
 			client.Close()
 			break
 		}
-		send := client.Name + "> " + string(buf)
+		send := strings.TrimSpace(client.Name) + "> " + msg
 		client.OUT <- send
 		for i := 0; i < 2048; i++ {
 			buf[i] = 0x00
 		}
 	}
-	client.OUT <- client.Name + " has left chat"
+	client.OUT <- strings.TrimSpace(client.Name) + " has left chat"
 }
 
 // clientsender(): get the data from handlingINOUT via channel (or quit signal from
 // clientreceiver) and send it via network
-func clientsender(client *ClientChat) {
+func clientsender(client *ClientChat, key []byte) {
 	for {
 		select {
 		case buf := <-client.IN:
-			client.Con.Write([]byte(buf))
+			msg, err := mycrypto.Encrypt(key, buf)
+			if err != nil {
+				fmt.Println("Error in clientsender()")
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			client.Con.Write([]byte(msg))
 		case <-client.Quit:
 			client.Con.Close()
 			break
@@ -132,19 +152,60 @@ func clientsender(client *ClientChat) {
 
 // clientHandling(): get the username and create the clientsturct
 // start the clientsender/receiver, add client to list.
-func clientHandling(con net.Conn, ch chan string, lst *list.List) {
+func clientHandling(con net.Conn, ch chan string, lst *list.List, privkey []byte, pubkey []byte) {
+	con.Write(pubkey)
 	buf := make([]byte, 1024)
-	bytenum, _ := con.Read(buf)
-	name := string(buf[0:bytenum])
-	newclient := &ClientChat{name, make(chan string), ch, con, make(chan bool), lst}
+	con.Read(buf)
+	n := bytes.IndexByte(buf, 0)
+	s := string(buf[:n])
+	clientkey, err := mycrypto.Decrypt(privkey, s)
+	if err != nil {
+		fmt.Println("Error in clientHandling() reading name.")
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	go clientsender(newclient)
-	go clientreceiver(newclient)
+	key := strings.TrimSpace(clientkey)
+	con.Read(buf)
+	n = bytes.IndexByte(buf, 0)
+	s = string(buf[:n])
+	name, err := mycrypto.Decrypt([]byte(key), s)
+	if err != nil {
+		fmt.Println("Error in clientHandling() reading name.")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	newclient := &ClientChat{strings.TrimSpace(name), string(key), make(chan string), ch, con, make(chan bool), lst}
+
+	go clientsender(newclient, []byte(key))
+	go clientreceiver(newclient, []byte(key))
 	lst.PushBack(*newclient)
-	ch <- name + " has joinet the chat"
+	ch <- strings.TrimSpace(string(name)) + " has joined the chat"
 }
 
 func main() {
+	// generate private key
+	privatekey, err := rsa.GenerateKey(rand.Reader, 1024)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	var publickey *rsa.PublicKey
+	publickey = &privatekey.PublicKey
+
+	pubkey, err := x509.MarshalPKIXPublicKey(publickey)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	privkey := x509.MarshalPKCS1PrivateKey(privatekey)
+
+	fmt.Println(string(privkey))
+	fmt.Println(string(pubkey))
 
 	// create the list of clients
 	clientlist := list.New()
@@ -167,6 +228,6 @@ func main() {
 	for {
 		// wait for clients
 		conn, _ := netlisten.Accept()
-		go clientHandling(conn, in, clientlist)
+		go clientHandling(conn, in, clientlist, privkey, pubkey)
 	}
 }

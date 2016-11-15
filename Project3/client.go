@@ -53,7 +53,11 @@ func clientsender(cn net.Conn, name []byte, key []byte) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		//fmt.Print(name)
-		input, _ := reader.ReadString('\n')
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading in clientsender()", err)
+			os.Exit(1)
+		}
 		if strings.TrimSpace(input) == "/quit" {
 			msg, err := mycrypto.Encrypt(key, input)
 			if err != nil {
@@ -157,7 +161,11 @@ func main() {
 	*/
 	// get the user name
 	fmt.Print("Please give your name: ")
-	name, _ := reader.ReadString('\n')
+	name, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Println("Error reading name", err)
+		os.Exit(1)
+	}
 	encrypted_name, err := mycrypto.Encrypt(symkey, name)
 	if err != nil {
 		fmt.Println("Error with name encryption")

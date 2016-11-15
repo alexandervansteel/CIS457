@@ -155,18 +155,18 @@ func clientsender(client *ClientChat, key []byte) {
 // start the clientsender/receiver, add client to list.
 func clientHandling(con net.Conn, ch chan string, lst *list.List, privkey []byte, pubkey []byte) {
 	/* key stuff removed for testing
-	   con.Write(pubkey)
-
-	buf := make([]byte, 1024)
-	con.Read(buf)
-	n := bytes.IndexByte(buf, 0)
-	s := string(buf[:n])
-	clientkey, err := mycrypto.Decrypt(privkey, s)
-	if err != nil {
-		fmt.Println("Error in clientHandling() reading name.")
-		fmt.Println(err)
-		os.Exit(1)
-	}
+		   con.Write(pubkey)
+	//something to make a change
+		buf := make([]byte, 1024)
+		con.Read(buf)
+		n := bytes.IndexByte(buf, 0)
+		s := string(buf[:n])
+		clientkey, err := mycrypto.Decrypt(privkey, s)
+		if err != nil {
+			fmt.Println("Error in clientHandling() reading name.")
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	*/
 	key := pubkey
 	//key := strings.TrimSpace(clientkey)
